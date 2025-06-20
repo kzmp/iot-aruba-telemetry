@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aruba IoT Telemetry Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #4a5568;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4299e1;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h2 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .telemetry-log {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            background: #f7fafc;
+        }
+
+        .telemetry-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .telemetry-item.ble {
+            border-left-color: #48bb78;
+        }
+
+        .telemetry-item.wifi {
+            border-left-color: #ed8936;
+        }
+
+        .telemetry-item.enocean {
+            border-left-color: #9f7aea;
+        }
+
+        .telemetry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .telemetry-type {
+            background: #4299e1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .telemetry-type.ble {
+            background: #48bb78;
+        }
+
+        .telemetry-type.wifi {
+            background: #ed8936;
+        }
+
+        .telemetry-type.enocean {
+            background: #9f7aea;
+        }
+
+        .telemetry-timestamp {
+            color: #718096;
+            font-size: 0.8rem;
+        }
+
+        .telemetry-details {
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        .device-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .device-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 3px solid #4299e1;
+        }
+
+        .device-id {
+            font-weight: bold;
+            color: #4a5568;
+        }
+
+        .device-info {
+            font-size: 0.8rem;
+            color: #718096;
+            margin-top: 2px;
+        }
+
+        .analytics-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .analytics-section h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+
+        .top-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .top-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+            transition: transform 0.2s ease;
+        }
+
+        .top-item:hover {
+            transform: translateX(5px);
+            background: #edf2f7;
+        }
+
+        .top-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .top-item-title {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 0.95rem;
+        }
+
+        .top-item-badge {
+            background: #4299e1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .top-item-details {
+            font-size: 0.85rem;
+            color: #718096;
+            line-height: 1.4;
+        }
+
+        .ble-reporter-item, .ble-device-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 10px;
+            border-left: 5px solid #48bb78;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .ble-reporter-item:hover, .ble-device-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .ble-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .ble-item-name {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }
+
+        .ble-item-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-excellent {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-good {
+            background: #fefcbf;
+            color: #744210;
+        }
+
+        .status-fair {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-poor {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .ble-item-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .ble-detail-item {
+            text-align: center;
+            padding: 8px;
+            background: #f7fafc;
+            border-radius: 6px;
+        }
+
+        .ble-detail-label {
+            display: block;
+            color: #718096;
+            font-size: 0.8rem;
+            margin-bottom: 2px;
+        }
+
+        .ble-detail-value {
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .rssi-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 5px;
+        }
+
+        .rssi-excellent { background: #48bb78; }
+        .rssi-good { background: #ed8936; }
+        .rssi-fair { background: #f56565; }
+        .rssi-poor { background: #a0aec0; }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌐 Aruba IoT Telemetry Dashboard</h1>
+            <p class="subtitle">Real-time monitoring of BLE, WiFi, and EnOcean devices</p>
+            <div style="margin-top: 15px; text-align: center;">
+                <span id="connectionStatus" class="connection-status disconnected">Disconnected</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalPackets">0</div>
+                <div class="stat-label">Total Packets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="blePackets">0</div>
+                <div class="stat-label">BLE Packets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="wifiPackets">0</div>
+                <div class="stat-label">WiFi Packets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="enoceanPackets">0</div>
+                <div class="stat-label">EnOcean Packets</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalDevices">0</div>
+                <div class="stat-label">Total Devices</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="connectedClients">0</div>
+                <div class="stat-label">Connected Clients</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>📡 Live Telemetry Stream</h2>
+                <div class="telemetry-log" id="telemetryLog">
+                    <div style="text-align: center; color: #718096; margin-top: 50px;">
+                        Waiting for telemetry data...
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📱 Connected Devices</h2>
+                <div class="device-list" id="deviceList">
+                    <div style="text-align: center; color: #718096; margin-top: 50px;">
+                        No devices detected yet...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLE Analytics Section -->
+        <div class="main-content">
+            <div class="panel">
+                <h2>📡 BLE Reporters (Access Points)</h2>
+                <div class="device-list" id="bleReportersList">
+                    <div style="text-align: center; color: #718096; margin-top: 50px;">
+                        No BLE reporters detected yet...
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📱 BLE Devices (Reported)</h2>
+                <div class="device-list" id="bleDevicesList">
+                    <div style="text-align: center; color: #718096; margin-top: 50px;">
+                        No BLE devices detected yet...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLE Signal Quality and Top Lists -->
+        <div class="main-content">
+            <div class="panel">
+                <h2>📊 BLE Signal Quality Distribution</h2>
+                <div class="chart-container">
+                    <canvas id="signalQualityChart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>🏆 Top BLE Analytics</h2>
+                <div class="analytics-container">
+                    <div class="analytics-section">
+                        <h3>Top Reporters by Activity</h3>
+                        <div id="topReporters" class="top-list">
+                            <div style="text-align: center; color: #718096; margin-top: 20px;">
+                                No data available...
+                            </div>
+                        </div>
+                    </div>
+                    <div class="analytics-section">
+                        <h3>Most Active Devices</h3>
+                        <div id="topDevices" class="top-list">
+                            <div style="text-align: center; color: #718096; margin-top: 20px;">
+                                No data available...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>📊 Packet Distribution</h2>
+            <div class="chart-container">
+                <canvas id="packetChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Chart setup
+        const ctx = document.getElementById('packetChart').getContext('2d');
+        const packetChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['BLE', 'WiFi', 'EnOcean', 'Other'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        '#48bb78',
+                        '#ed8936',
+                        '#9f7aea',
+                        '#4299e1'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Signal Quality Chart setup
+        const signalCtx = document.getElementById('signalQualityChart').getContext('2d');
+        const signalQualityChart = new Chart(signalCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Excellent (>-50dBm)', 'Good (-50 to -70dBm)', 'Fair (-70 to -85dBm)', 'Poor (<-85dBm)'],
+                datasets: [{
+                    label: 'Number of Devices',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        '#48bb78',
+                        '#ed8936',
+                        '#f56565',
+                        '#a0aec0'
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').className = 'connection-status connected';
+            
+            // Request initial stats
+            socket.emit('request_stats');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').className = 'connection-status disconnected';
+        });
+
+        socket.on('telemetry_update', function(data) {
+            console.log('Received telemetry:', data);
+            addTelemetryItem(data);
+            updateDeviceList();
+            updateStats();
+        });
+
+        socket.on('stats_update', function(stats) {
+            console.log('Received stats:', stats);
+            updateStatsDisplay(stats);
+            updateChart(stats);
+        });
+
+        function addTelemetryItem(data) {
+            const log = document.getElementById('telemetryLog');
+            const item = document.createElement('div');
+            item.className = `telemetry-item ${data.type}`;
+            
+            const timestamp = new Date(data.timestamp).toLocaleTimeString();
+            const deviceId = data.device_id || 'Unknown';
+            const accessPoint = data.access_point || 'N/A';
+            
+            let details = '';
+            if (data.type === 'ble') {
+                details = `RSSI: ${data.rssi}dBm, MAC: ${data.mac_address || 'N/A'}`;
+            } else if (data.type === 'wifi') {
+                details = `RSSI: ${data.rssi}dBm, SSID: ${data.ssid || 'N/A'}, Channel: ${data.channel || 'N/A'}`;
+            } else if (data.type === 'enocean') {
+                details = `RSSI: ${data.rssi}dBm, EEP: ${data.eep || 'N/A'}`;
+            } else {
+                details = 'Generic packet';
+            }
+            
+            item.innerHTML = `
+                <div class="telemetry-header">
+                    <span class="telemetry-type ${data.type}">${data.type.toUpperCase()}</span>
+                    <span class="telemetry-timestamp">${timestamp}</span>
+                </div>
+                <div class="telemetry-details">
+                    <strong>Device:</strong> ${deviceId}<br>
+                    <strong>AP:</strong> ${accessPoint}<br>
+                    ${details}
+                </div>
+            `;
+            
+            log.insertBefore(item, log.firstChild);
+            
+            // Keep only latest 50 items
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function updateDeviceList() {
+            fetch('/api/devices')
+                .then(response => response.json())
+                .then(devices => {
+                    const deviceList = document.getElementById('deviceList');
+                    
+                    if (Object.keys(devices).length === 0) {
+                        deviceList.innerHTML = '<div style="text-align: center; color: #718096; margin-top: 50px;">No devices detected yet...</div>';
+                        return;
+                    }
+                    
+                    deviceList.innerHTML = '';
+                    
+                    Object.entries(devices).forEach(([deviceId, info]) => {
+                        const deviceItem = document.createElement('div');
+                        deviceItem.className = 'device-item';
+                        
+                        const lastSeen = new Date(info.last_seen).toLocaleString();
+                        
+                        deviceItem.innerHTML = `
+                            <div class="device-id">${deviceId}</div>
+                            <div class="device-info">
+                                Type: ${info.type.toUpperCase()} | 
+                                Last seen: ${lastSeen} | 
+                                AP: ${info.access_point || 'N/A'}
+                            </div>
+                        `;
+                        
+                        deviceList.appendChild(deviceItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching devices:', error));
+        }
+
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(stats => {
+                    updateStatsDisplay(stats);
+                    updateChart(stats);
+                })
+                .catch(error => console.error('Error fetching stats:', error));
+        }
+
+        function updateStatsDisplay(stats) {
+            document.getElementById('totalPackets').textContent = stats.total_packets;
+            document.getElementById('blePackets').textContent = stats.ble_packets;
+            document.getElementById('wifiPackets').textContent = stats.wifi_packets;
+            document.getElementById('enoceanPackets').textContent = stats.enocean_packets;
+            document.getElementById('totalDevices').textContent = stats.total_devices;
+            document.getElementById('connectedClients').textContent = stats.connected_clients;
+        }
+
+        function updateChart(stats) {
+            const otherPackets = stats.total_packets - stats.ble_packets - stats.wifi_packets - stats.enocean_packets;
+            
+            packetChart.data.datasets[0].data = [
+                stats.ble_packets,
+                stats.wifi_packets,
+                stats.enocean_packets,
+                otherPackets
+            ];
+            packetChart.update();
+        }
+
+        function updateBLEReporters() {
+            fetch('/api/ble/reporters')
+                .then(response => response.json())
+                .then(reporters => {
+                    const reportersList = document.getElementById('bleReportersList');
+                    
+                    if (Object.keys(reporters).length === 0) {
+                        reportersList.innerHTML = '<div style="text-align: center; color: #718096; margin-top: 50px;">No BLE reporters detected yet...</div>';
+                        return;
+                    }
+                    
+                    reportersList.innerHTML = '';
+                    
+                    Object.values(reporters).forEach(reporter => {
+                        const reporterItem = document.createElement('div');
+                        reporterItem.className = 'ble-reporter-item';
+                        
+                        const rssiStatus = getRSSIStatus(reporter.avg_rssi);
+                        
+                        reporterItem.innerHTML = `
+                            <div class="ble-item-header">
+                                <div class="ble-item-name">📡 ${reporter.name}</div>
+                                <div class="ble-item-status ${rssiStatus.class}">
+                                    ${rssiStatus.label}
+                                    <span class="rssi-indicator ${rssiStatus.indicator}"></span>
+                                </div>
+                            </div>
+                            <div class="ble-item-details">
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Devices Seen</span>
+                                    <span class="ble-detail-value">${reporter.devices_seen}</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Total Packets</span>
+                                    <span class="ble-detail-value">${reporter.total_packets}</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Avg RSSI</span>
+                                    <span class="ble-detail-value">${reporter.avg_rssi} dBm</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Last Seen</span>
+                                    <span class="ble-detail-value">${formatTimestamp(reporter.last_seen)}</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        reportersList.appendChild(reporterItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching BLE reporters:', error));
+        }
+
+        function updateBLEDevices() {
+            fetch('/api/ble/devices')
+                .then(response => response.json())
+                .then(devices => {
+                    const devicesList = document.getElementById('bleDevicesList');
+                    
+                    if (Object.keys(devices).length === 0) {
+                        devicesList.innerHTML = '<div style="text-align: center; color: #718096; margin-top: 50px;">No BLE devices detected yet...</div>';
+                        return;
+                    }
+                    
+                    devicesList.innerHTML = '';
+                    
+                    Object.values(devices).forEach(device => {
+                        const deviceItem = document.createElement('div');
+                        deviceItem.className = 'ble-device-item';
+                        
+                        const rssiStatus = getRSSIStatus(device.avg_rssi);
+                        
+                        deviceItem.innerHTML = `
+                            <div class="ble-item-header">
+                                <div class="ble-item-name">📱 ${device.device_id}</div>
+                                <div class="ble-item-status ${rssiStatus.class}">
+                                    ${rssiStatus.label}
+                                    <span class="rssi-indicator ${rssiStatus.indicator}"></span>
+                                </div>
+                            </div>
+                            <div class="ble-item-details">
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">MAC Address</span>
+                                    <span class="ble-detail-value">${device.mac_address}</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Reporters</span>
+                                    <span class="ble-detail-value">${device.reporters_count}</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Total Packets</span>
+                                    <span class="ble-detail-value">${device.total_packets}</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Avg RSSI</span>
+                                    <span class="ble-detail-value">${device.avg_rssi} dBm</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">RSSI Range</span>
+                                    <span class="ble-detail-value">${device.worst_rssi} to ${device.best_rssi} dBm</span>
+                                </div>
+                                <div class="ble-detail-item">
+                                    <span class="ble-detail-label">Primary Reporter</span>
+                                    <span class="ble-detail-value">${device.primary_reporter}</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        devicesList.appendChild(deviceItem);
+                    });
+                })
+                .catch(error => console.error('Error fetching BLE devices:', error));
+        }
+
+        function updateBLEAnalytics() {
+            fetch('/api/ble/analytics')
+                .then(response => response.json())
+                .then(analytics => {
+                    // Update signal quality chart
+                    signalQualityChart.data.datasets[0].data = [
+                        analytics.signal_quality.excellent,
+                        analytics.signal_quality.good,
+                        analytics.signal_quality.fair,
+                        analytics.signal_quality.poor
+                    ];
+                    signalQualityChart.update();
+                    
+                    // Update top reporters
+                    const topReporters = document.getElementById('topReporters');
+                    if (analytics.top_reporters.length === 0) {
+                        topReporters.innerHTML = '<div style="text-align: center; color: #718096; margin-top: 20px;">No data available...</div>';
+                    } else {
+                        topReporters.innerHTML = '';
+                        analytics.top_reporters.forEach((reporter, index) => {
+                            const item = document.createElement('div');
+                            item.className = 'top-item';
+                            item.innerHTML = `
+                                <div class="top-item-header">
+                                    <span class="top-item-title">#${index + 1} ${reporter.name}</span>
+                                    <span class="top-item-badge">${reporter.total_packets} packets</span>
+                                </div>
+                                <div class="top-item-details">
+                                    Devices seen: ${reporter.devices_seen} | Avg RSSI: ${reporter.avg_rssi} dBm
+                                </div>
+                            `;
+                            topReporters.appendChild(item);
+                        });
+                    }
+                    
+                    // Update top devices
+                    const topDevices = document.getElementById('topDevices');
+                    if (analytics.top_devices.length === 0) {
+                        topDevices.innerHTML = '<div style="text-align: center; color: #718096; margin-top: 20px;">No data available...</div>';
+                    } else {
+                        topDevices.innerHTML = '';
+                        analytics.top_devices.forEach((device, index) => {
+                            const item = document.createElement('div');
+                            item.className = 'top-item';
+                            item.innerHTML = `
+                                <div class="top-item-header">
+                                    <span class="top-item-title">#${index + 1} ${device.device_id}</span>
+                                    <span class="top-item-badge">${device.total_packets} packets</span>
+                                </div>
+                                <div class="top-item-details">
+                                    MAC: ${device.mac_address} | Avg RSSI: ${device.avg_rssi} dBm | Primary AP: ${device.primary_reporter}
+                                </div>
+                            `;
+                            topDevices.appendChild(item);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error fetching BLE analytics:', error));
+        }
+
+        function getRSSIStatus(rssi) {
+            if (rssi > -50) {
+                return { class: 'status-excellent', label: 'Excellent', indicator: 'rssi-excellent' };
+            } else if (rssi > -70) {
+                return { class: 'status-good', label: 'Good', indicator: 'rssi-good' };
+            } else if (rssi > -85) {
+                return { class: 'status-fair', label: 'Fair', indicator: 'rssi-fair' };
+            } else {
+                return { class: 'status-poor', label: 'Poor', indicator: 'rssi-poor' };
+            }
+        }
+
+        function formatTimestamp(timestamp) {
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        // Refresh stats and devices every 5 seconds
+        setInterval(() => {
+            if (socket.connected) {
+                updateStats();
+                updateDeviceList();
+                updateBLEReporters();
+                updateBLEDevices();
+                updateBLEAnalytics();
+            }
+        }, 5000);
+
+        // Initial load
+        window.addEventListener('load', () => {
+            updateStats();
+            updateDeviceList();
+            updateBLEReporters();
+            updateBLEDevices();
+            updateBLEAnalytics();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Aruba IoT Server",
+			"type": "shell",
+			"command": "/Users/deaw/Downloads/newgit/iot-aruba/.venv/bin/python",
+			"args": [
+				"app.py"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "Run Test Client (60s)",
+			"type": "shell",
+			"command": "/Users/deaw/Downloads/newgit/iot-aruba/.venv/bin/python",
+			"args": ["test_client.py", "--duration", "60"],
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": "/Users/deaw/Downloads/newgit/iot-aruba/.venv/bin/pip",
+			"args": ["install", "-r", "requirements.txt"],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			},
+			"problemMatcher": []
+		}
+	]
+}

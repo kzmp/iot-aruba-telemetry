@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Aruba IoT Server",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "FLASK_DEBUG": "True",
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": [],
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Test Client",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_client.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["--duration", "30"],
+            "justMyCode": true
+        }
+    ]
+}
