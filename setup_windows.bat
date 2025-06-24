@@ -110,8 +110,86 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr "IPv4"') do (
 REM Create firewall rules
 echo.
 echo 🔥 Setting up Windows Firewall rules...
-echo This requires Administrator privileges. You may see UAC prompts.
-powershell -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"New-NetFirewallRule -DisplayName \"\"Aruba IoT Web\"\" -Direction Inbound -Protocol TCP -LocalPort 9090 -Action Allow -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName \"\"Aruba IoT WebSocket\"\" -Direction Inbound -Protocol TCP -LocalPort 9191 -Action Allow -ErrorAction SilentlyContinue; Write-Host \"\"Firewall rules added successfully\"\"\"'"
+echo ========================================
+echo The application needs to allow incoming connections on:
+echo - Port 9090 (Web Dashboard)
+echo - Port 9191 (WebSocket Server)
+echo.
+
+REM Check if running as administrator
+net session >nul 2>&1
+if errorlevel 1 (
+    echo ⚠️  Administrator privileges required for firewall configuration
+    echo.
+    echo Option 1: Run as Administrator (Recommended)
+    echo -----------------------------------------
+    echo 1. Right-click on Command Prompt and select "Run as administrator"
+    echo 2. Navigate to this folder and run setup_windows.bat again
+    echo.
+    echo Option 2: Manual Firewall Configuration
+    echo -------------------------------------
+    echo 1. Open Windows Defender Firewall with Advanced Security
+    echo 2. Click "Inbound Rules" ^> "New Rule"
+    echo 3. Select "Port" ^> "TCP" ^> enter "9090,9191"
+    echo 4. Select "Allow the connection"
+    echo 5. Apply to all profiles and name it "Aruba IoT Telemetry"
+    echo.
+    echo Option 3: Continue without firewall changes (Local use only)
+    echo ----------------------------------------------------------
+    echo The application will work locally but won't accept external connections
+    echo.
+    set /p choice="Press 1 to restart as admin, 2 for manual setup, 3 to continue [1/2/3]: "
+    
+    if "%choice%"=="1" (
+        echo Restarting as administrator...
+        powershell -Command "Start-Process cmd -Verb RunAs -ArgumentList '/c cd /d \"%CD%\" && setup_windows.bat && pause'"
+        exit /b 0
+    )
+    if "%choice%"=="2" (
+        echo Please configure firewall manually as described above
+        echo Press any key when done...
+        pause >nul
+    )
+    if "%choice%"=="3" (
+        echo ⚠️  Continuing without firewall configuration
+        echo External connections will be blocked
+    )
+) else (
+    echo ✅ Administrator privileges detected
+    echo Adding firewall rules for ports 9090 and 9191...
+    
+    REM Add firewall rules using netsh (more reliable than PowerShell)
+    netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 >nul 2>&1
+    if errorlevel 1 (
+        echo ⚠️  Failed to add rule for port 9090
+    ) else (
+        echo ✅ Added firewall rule for port 9090 (Web Dashboard)
+    )
+    
+    netsh advfirewall firewall add rule name="Aruba IoT WebSocket Server" dir=in action=allow protocol=TCP localport=9191 >nul 2>&1
+    if errorlevel 1 (
+        echo ⚠️  Failed to add rule for port 9191
+    ) else (
+        echo ✅ Added firewall rule for port 9191 (WebSocket Server)
+    )
+    
+    REM Verify the rules were added
+    echo.
+    echo 🔍 Verifying firewall rules...
+    netsh advfirewall firewall show rule name="Aruba IoT Web Dashboard" >nul 2>&1
+    if errorlevel 1 (
+        echo ❌ Web Dashboard firewall rule not found
+    ) else (
+        echo ✅ Web Dashboard firewall rule active
+    )
+    
+    netsh advfirewall firewall show rule name="Aruba IoT WebSocket Server" >nul 2>&1
+    if errorlevel 1 (
+        echo ❌ WebSocket Server firewall rule not found
+    ) else (
+        echo ✅ WebSocket Server firewall rule active
+    )
+)
 
 echo.
 echo ✅ Setup Complete!
