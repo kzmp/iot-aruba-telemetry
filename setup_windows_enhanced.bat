@@ -190,46 +190,48 @@ REM Clean up any existing flag files to avoid false positives
 if exist firewall_complete.flag del firewall_complete.flag >nul 2>&1
 if exist firewall_output.txt del firewall_output.txt >nul 2>&1
 
-REM Verify if Windows Firewall service is running (reliably)
+REM Verify if Windows Firewall service is running (with improved error handling)
 call :LOG_INFO "Checking Windows Firewall service status"
-sc query MpsSvc >nul 2>&1
+
+REM Try to check firewall service with error protection
+set "FIREWALL_SERVICE_ERROR=0"
+set "FIREWALL_SERVICE_RUNNING=1"
+
+REM Safer service checking that won't cause the script to exit on failure
+cmd /c "sc query MpsSvc >nul 2>&1 || exit /b 1"
 if !ERRORLEVEL! neq 0 (
     call :LOG_WARNING "Unable to query firewall service - command failed"
     echo %YELLOW%⚠️  Cannot access Windows Firewall service information%RESET%
-    echo %YELLOW%⚠️  Skipping firewall configuration (non-critical)%RESET%
-    set "FIREWALL_OK=0"
-    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
-    goto :skip_to_step7
-)
-
-sc query MpsSvc | findstr /i "RUNNING" >nul 2>&1
-set "FIREWALL_SERVICE_RUNNING=!ERRORLEVEL!"
-if !FIREWALL_SERVICE_RUNNING! neq 0 (
-    call :LOG_WARNING "Windows Firewall service is not running"
-    echo %YELLOW%⚠️  Windows Firewall service is not running%RESET%
-    echo %YELLOW%⚠️  Skipping automatic firewall configuration (non-critical)%RESET%
-    set "FIREWALL_OK=0"
-    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
-    goto :skip_to_step7
+    echo %YELLOW%⚠️  Continuing with firewall configuration anyway (non-critical)%RESET%
+    set "FIREWALL_SERVICE_ERROR=1"
+) else (
+    REM Only run the findstr if the sc query was successful
+    cmd /c "sc query MpsSvc | findstr /i \"RUNNING\" >nul 2>&1 || exit /b 1"
+    set "FIREWALL_SERVICE_RUNNING=!ERRORLEVEL!"
+    
+    if !FIREWALL_SERVICE_RUNNING! neq 0 (
+        call :LOG_WARNING "Windows Firewall service is not running"
+        echo %YELLOW%⚠️  Windows Firewall service is not running%RESET%
+        echo %YELLOW%⚠️  Continuing with firewall configuration anyway (non-critical)%RESET%
+    ) else (
+        call :LOG_INFO "Windows Firewall service is running properly"
+    )
 )
 
 REM Check admin rights early to avoid unnecessary processing
 call :LOG_INFO "Checking administrator privileges"
-net session >nul 2>&1
+cmd /c "net session >nul 2>&1 || exit /b 1"
 set "ADMIN_CHECK_RESULT=!ERRORLEVEL!"
 if !ADMIN_CHECK_RESULT! neq 0 (
     call :LOG_WARNING "No administrator privileges detected for firewall configuration"
     echo %YELLOW%⚠️  Administrator privileges required for firewall configuration%RESET%
-    echo %YELLOW%⚠️  Skipping automatic firewall configuration (non-critical)%RESET%
-    set "FIREWALL_OK=0"
-    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
-    goto :skip_to_step7
+    echo %YELLOW%⚠️  Continuing, but firewall configuration may fail (non-critical)%RESET%
 )
 
-REM At this point, we know:
-REM 1. Firewall service is running
-REM 2. We have admin rights
-REM Now it's safe to proceed with firewall configuration
+REM At this point, we've checked:
+REM 1. Firewall service status (may or may not be running)
+REM 2. Admin rights (may or may not have them)
+REM We'll proceed with firewall configuration regardless, with appropriate error handling
 
 REM Firewall is non-critical, so we handle errors differently
 call :TRY_CATCH_BEGIN "Configuring Windows Firewall (non-critical)"
@@ -243,6 +245,9 @@ call :LOG_INFO "Starting firewall rule configuration with timeout protection"
 
 REM Create a separate batch file for the firewall configuration
 REM This prevents issues with function calls in background processes
+set "TEMP_FIREWALL_SCRIPT=%TEMP%\aruba_firewall_config_%RANDOM%.bat"
+call :LOG_INFO "Creating temporary firewall script: !TEMP_FIREWALL_SCRIPT!"
+
 (
     echo @echo off
     echo setlocal enabledelayedexpansion
@@ -278,13 +283,26 @@ REM This prevents issues with function calls in background processes
     echo.
     echo echo 1^> "%CD%\firewall_complete.flag"
     echo exit /b 0
-) > "%TEMP%\aruba_firewall_config.bat"
+) > "!TEMP_FIREWALL_SCRIPT!" 2>nul || (
+    call :LOG_WARNING "Failed to create temporary firewall script"
+    echo %YELLOW%⚠️  Failed to create temporary script for firewall configuration%RESET%
+    echo %YELLOW%⚠️  Continuing setup - you may need to configure firewall manually%RESET%
+    set "FIREWALL_OK=0"
+    goto :firewall_timeout_end
+)
 
 REM Start firewall configuration in a separate process
-start /b cmd /c "%TEMP%\aruba_firewall_config.bat" > firewall_output.txt 2>&1
+call :LOG_INFO "Starting firewall configuration in separate process"
+cmd /c "start /b cmd /c \"!TEMP_FIREWALL_SCRIPT!\" > firewall_output.txt 2>&1" || (
+    call :LOG_WARNING "Failed to start firewall configuration process"
+    echo %YELLOW%⚠️  Failed to start firewall configuration process%RESET%
+    set "FIREWALL_OK=0"
+    goto :firewall_timeout_end
+)
 
 REM Wait for the configuration to complete with a timeout
 set "TIMEOUT_SECONDS=20"
+call :LOG_INFO "Waiting up to !TIMEOUT_SECONDS! seconds for firewall configuration..."
 echo Waiting up to !TIMEOUT_SECONDS! seconds for firewall configuration...
 set "ELAPSED=0"
 set "FIREWALL_COMPLETE=0"
@@ -299,32 +317,51 @@ if !ELAPSED! geq !TIMEOUT_SECONDS! (
 )
 
 if exist firewall_complete.flag (
+    call :LOG_INFO "Firewall configuration process completed"
     set "FIREWALL_COMPLETE=1"
     del firewall_complete.flag >nul 2>&1
     goto :firewall_timeout_end
 )
 
-timeout /t 1 /nobreak >nul
+REM Use a shorter timeout for better responsiveness
+timeout /t 1 /nobreak >nul 2>&1
 set /a ELAPSED+=1
 goto :wait_for_firewall
 
 :firewall_timeout_end
-REM Clean up temporary batch file
-if exist "%TEMP%\aruba_firewall_config.bat" del "%TEMP%\aruba_firewall_config.bat" >nul 2>&1
+REM Clean up temporary batch file with error handling
+if defined TEMP_FIREWALL_SCRIPT (
+    if exist "!TEMP_FIREWALL_SCRIPT!" (
+        del "!TEMP_FIREWALL_SCRIPT!" >nul 2>&1
+        call :LOG_INFO "Temporary firewall script cleaned up"
+    )
+)
 
 REM Check firewall output for success marker
 if exist firewall_output.txt (
-    echo %CYAN%Firewall Configuration Results:%RESET%
-    type firewall_output.txt
+    call :LOG_INFO "Analyzing firewall configuration results"
     
+    REM Save the output to the log for debugging
+    echo %CYAN%Firewall Configuration Results:%RESET%
+    type firewall_output.txt 2>nul
+    type firewall_output.txt >> "%DEBUG_LOG%" 2>nul
+    
+    REM Check for success marker in output
     findstr /C:"FIREWALL_CONFIG_SUCCESS" firewall_output.txt >nul 2>&1
     if !ERRORLEVEL!==0 (
+        call :LOG_SUCCESS "Firewall configuration completed successfully"
         set "FIREWALL_OK=1"
     ) else (
+        call :LOG_WARNING "Firewall configuration did not complete successfully"
         set "FIREWALL_OK=0"
     )
     
+    REM Clean up output file
     del firewall_output.txt >nul 2>&1
+) else (
+    call :LOG_WARNING "No firewall configuration output found"
+    echo %YELLOW%⚠️  No firewall configuration output available%RESET%
+    set "FIREWALL_OK=0"
 )
 
 REM Restore errorlevel and log completion regardless of result
@@ -343,7 +380,7 @@ REM Always succeed on firewall step since it's non-critical
 set "ERRORLEVEL=0"
 call :TRY_CATCH_END
 
-:skip_to_step7
+goto :skip_to_step7
 
 REM ============================================================================
 REM STEP 7: FINAL VALIDATION AND TESTING
