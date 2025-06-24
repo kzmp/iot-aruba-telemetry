@@ -249,27 +249,50 @@ telemetry_handler = ArubaIoTTelemetryHandler()
 async def aruba_websocket_server(websocket, path):
     """WebSocket server to receive data from Aruba access points"""
     client_address = websocket.remote_address
-    logger.info(f"New Aruba AP connection from {client_address}")
+    logger.info(f"New Aruba AP connection from {client_address[0]}:{client_address[1]} on path: {path}")
+    
+    # Send welcome message to confirm connection
+    try:
+        await websocket.send(json.dumps({
+            "status": "connected",
+            "message": "Aruba IoT Telemetry Server Ready",
+            "timestamp": datetime.now().isoformat(),
+            "server_version": "1.0"
+        }))
+        logger.info(f"Sent welcome message to {client_address}")
+    except Exception as e:
+        logger.error(f"Failed to send welcome message: {e}")
     
     try:
         async for message in websocket:
-            logger.debug(f"Received message from {client_address}: {message[:100]}...")
+            logger.info(f"Received message from {client_address[0]}: {message[:200]}...")
             
             # Process the telemetry data
             processed_data = telemetry_handler.process_telemetry(message)
             
             if processed_data:
                 # Store the data for the web interface
-                # The web interface will poll for updates via API endpoints
-                logger.debug(f"Stored telemetry update: {processed_data['type']}")
+                logger.info(f"Successfully processed {processed_data['type']} packet from {processed_data.get('device_id', 'unknown')}")
                 
-                # We could also use a message queue here for real-time updates
-                # For now, web clients will get updates via API polling
+                # Send acknowledgment back to Aruba AP
+                try:
+                    ack_response = json.dumps({
+                        "status": "received",
+                        "packet_type": processed_data['type'],
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await websocket.send(ack_response)
+                except Exception as e:
+                    logger.error(f"Failed to send acknowledgment: {e}")
+            else:
+                logger.warning(f"Failed to process message from {client_address}")
             
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Aruba AP {client_address} disconnected")
+        logger.info(f"Aruba AP {client_address[0]} disconnected")
+    except websockets.exceptions.ConnectionClosedError:
+        logger.info(f"Aruba AP {client_address[0]} connection closed unexpectedly")
     except Exception as e:
-        logger.error(f"Error in WebSocket connection {client_address}: {e}")
+        logger.error(f"Error in WebSocket connection {client_address}: {e}", exc_info=True)
 
 # Flask routes
 @app.route('/')
@@ -438,10 +461,24 @@ def handle_stats_request():
 def start_aruba_websocket_server():
     """Start the WebSocket server for Aruba APs"""
     host = os.getenv('ARUBA_WS_HOST', '0.0.0.0')
-    port = int(os.getenv('ARUBA_WS_PORT', 8765))
+    port = int(os.getenv('ARUBA_WS_PORT', 9191))
     
     logger.info(f"Starting Aruba WebSocket server on {host}:{port}")
-    start_server = websockets.serve(aruba_websocket_server, host, port)
+    logger.info(f"WebSocket server will accept connections on ws://{host}:{port}/aruba")
+    
+    # Create server with proper SSL context if needed
+    start_server = websockets.serve(
+        aruba_websocket_server, 
+        host, 
+        port,
+        # Add ping/pong for connection health
+        ping_interval=30,
+        ping_timeout=10,
+        # Allow larger message sizes for telemetry data
+        max_size=1024*1024,  # 1MB
+        # Compression for better performance
+        compression=None
+    )
     return start_server
 
 if __name__ == '__main__':

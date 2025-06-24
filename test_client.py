@@ -100,7 +100,7 @@ async def simulate_aruba_ap(server_uri, duration=300):
     Simulate an Aruba access point sending data to the server
     
     Args:
-        server_uri: WebSocket server URI (e.g., "ws://localhost:8765")
+        server_uri: WebSocket server URI (e.g., "ws://localhost:9191")
         duration: Simulation duration in seconds
     """
     simulator = ArubaAPSimulator()
@@ -141,8 +141,8 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Simulate Aruba AP sending IoT telemetry")
-    parser.add_argument("--server", default="ws://localhost:8765", 
-                        help="WebSocket server URI (default: ws://localhost:8765)")
+    parser.add_argument("--server", default="ws://localhost:9191", 
+                        help="WebSocket server URI (default: ws://localhost:9191)")
     parser.add_argument("--duration", type=int, default=60,
                         help="Simulation duration in seconds (default: 60)")
     
