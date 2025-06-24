@@ -157,10 +157,17 @@ if __name__ == "__main__":
     print(f"Auth Token: {args.token}")
     print()
     
-    # Add token to server URI
-    if '?' in args.server:
-        server_uri = f"{args.server}&token={args.token}"
+    # Add path and token to server URI
+    base_uri = args.server
+    if not base_uri.endswith('/'):
+        base_uri = f"{base_uri}/aruba"
     else:
-        server_uri = f"{args.server}?token={args.token}"
+        base_uri = f"{base_uri}aruba"
+        
+    # Add token to server URI
+    if '?' in base_uri:
+        server_uri = f"{base_uri}&token={args.token}"
+    else:
+        server_uri = f"{base_uri}?token={args.token}"
     
     asyncio.run(simulate_aruba_ap(server_uri, args.duration))
