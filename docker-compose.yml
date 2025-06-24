@@ -10,7 +10,9 @@ version: '3'
 services:
   aruba-iot:
     build: .
-    command: python app.py --allow-unsafe-werkzeug
+    command: python app.py --allow-unsafe-werkzeug=true
+    image: aruba-iot-telemetry:latest
+    container_name: aruba-iot-telemetry
     
     ports:
       - "9090:9090"  # Web dashboard
