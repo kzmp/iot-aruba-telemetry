@@ -279,3 +279,64 @@ This project is open source and available under the [MIT License](LICENSE).
 ---
 
 🚀 **Ready to monitor your IoT network with Aruba!** Start the application and watch real-time telemetry data flow through your dashboard.
+
+## 🌐 Deployment to Another Machine
+
+For production deployment on a remote server, we provide multiple deployment options:
+
+### Option 1: Quick Setup Script (Recommended)
+```bash
+# On the target machine
+git clone https://github.com/kzmp/iot-aruba-telemetry.git
+cd iot-aruba-telemetry
+chmod +x setup.sh
+./setup.sh
+```
+
+### Option 2: Manual Setup
+```bash
+# 1. Clone repository
+git clone https://github.com/kzmp/iot-aruba-telemetry.git
+cd iot-aruba-telemetry
+
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# or .venv\Scripts\activate  # Windows
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+cp .env.example .env
+# Edit .env with your settings
+
+# 5. Open firewall ports 9090 and 9191
+
+# 6. Run the application
+python app.py
+```
+
+### Option 3: Docker Deployment
+```bash
+# Clone and build
+git clone https://github.com/kzmp/iot-aruba-telemetry.git
+cd iot-aruba-telemetry
+docker build -t aruba-iot .
+
+# Run container
+docker run -d -p 9090:9090 -p 9191:9191 \
+  -e ARUBA_AUTH_TOKENS=your-secure-token \
+  --name aruba-iot aruba-iot
+```
+
+### Remote Access URLs
+After deployment, your Aruba controllers can connect using:
+```
+WebSocket: ws://YOUR_SERVER_IP:9191/aruba?token=YOUR_TOKEN
+Dashboard: http://YOUR_SERVER_IP:9090
+```
+
+**📖 For detailed deployment instructions, see: [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+
+## 🔐 Security & Authentication

@@ -9,27 +9,36 @@
 
 ## Connection URLs to Try
 
-### Primary (Current Network IP)
+### ✅ TESTED WORKING IPs - WITH AUTHENTICATION
 ```
-ws://192.168.255.66:9191/aruba
-```
-
-### Alternative (Previous IP if still valid)
-```
-ws://192.168.255.34:9191/aruba
+ws://10.211.55.2:9191/aruba?token=1234        (Parallels Network - TESTED ✅)
+ws://10.37.129.2:9191/aruba?token=admin       (VMware Network - TESTED ✅) 
+ws://172.20.10.2:9191/aruba?token=aruba-iot   (Cellular/Hotspot - TESTED ✅)
 ```
 
-### Localhost (if controller is on same machine)
+### ❌ NON-WORKING IPs (VPN/Tunnel Issues)
 ```
-ws://localhost:9191/aruba
-ws://127.0.0.1:9191/aruba
+ws://192.168.255.35:9191/aruba?token=1234     (VPN Interface - Connection Timeout)
 ```
+
+### Localhost (if controller is on same machine) - WITH AUTHENTICATION
+```
+ws://localhost:9191/aruba?token=1234
+ws://127.0.0.1:9191/aruba?token=admin
+```
+
+### ⚠️ Authentication Required
+**All connections MUST include a valid authentication token via:**
+- Query parameter: `?token=YOUR_TOKEN`
+- Authorization header: `Bearer YOUR_TOKEN`
+- Custom header: `X-Auth-Token: YOUR_TOKEN`
 
 ## Aruba Controller Configuration
 
 ### WebSocket Client Settings
 - **Protocol**: WebSocket (ws://) or WebSocket Secure (wss://)
-- **Authentication**: Token-based (send token in header or query param)
+- **Authentication**: **REQUIRED** - Token-based authentication
+- **Valid Tokens**: `1234`, `admin`, `aruba-iot`, `secure-token-2025`
 - **Path**: `/aruba`
 - **Subprotocol**: Not required
 - **Ping/Pong**: Enabled (30s interval)
@@ -38,13 +47,32 @@ ws://127.0.0.1:9191/aruba
 ```json
 {
   "websocket": {
-    "url": "ws://192.168.255.34:9191/aruba",
-    "token": "1234",
+    "url": "ws://192.168.255.66:9191/aruba?token=1234",
     "reconnect": true,
-    "ping_interval": 30
+    "ping_interval": 30,
+    "headers": {
+      "X-Auth-Token": "1234",
+      "User-Agent": "Aruba-IoT-Controller/1.0"
+    }
   }
 }
 ```
+
+### Authentication Methods
+1. **Query Parameter** (Recommended):
+   ```
+   ws://server:9191/aruba?token=YOUR_TOKEN
+   ```
+
+2. **Authorization Header**:
+   ```
+   Authorization: Bearer YOUR_TOKEN
+   ```
+
+3. **Custom Header**:
+   ```
+   X-Auth-Token: YOUR_TOKEN
+   ```
 
 ## Troubleshooting Steps
 
@@ -93,7 +121,31 @@ traceroute 192.168.255.34
 ## Server Logs
 Monitor server logs for connection attempts:
 ```bash
-tail -f /path/to/server.log
+# Local development
+tail -f app.log
+
+# Production (systemd)
+journalctl -u aruba-iot -f
+
+# Docker
+docker logs -f aruba-iot
+```
+
+## Deployment to Another Machine
+
+For complete deployment instructions to another machine, see: **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+
+### Quick Remote Deployment Summary:
+1. **Clone repository**: `git clone https://github.com/kzmp/iot-aruba-telemetry.git`
+2. **Setup Python environment**: `python3 -m venv .venv && source .venv/bin/activate`
+3. **Install dependencies**: `pip install -r requirements.txt`
+4. **Configure environment**: Edit `.env` file with your tokens and settings
+5. **Open firewall ports**: 9090 (web) and 9191 (WebSocket)
+6. **Run application**: `python app.py`
+
+### Connection URLs for Remote Server:
+```
+ws://REMOTE_SERVER_IP:9191/aruba?token=YOUR_TOKEN
 ```
 
 ## Contact Information
