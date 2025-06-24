@@ -53,11 +53,36 @@ class ArubaIoTTelemetryHandler:
         
     def process_ble_packet(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process Bluetooth Low Energy packet data"""
+        logger.info("process_ble_packet: Processing BLE packet")
+        
         device_id = data.get('deviceId', 'unknown')
+        logger.info(f"process_ble_packet: Device ID: {device_id}")
+        
         mac_address = data.get('macAddress', '')
+        logger.info(f"process_ble_packet: MAC Address: {mac_address or 'Not provided'}")
+        
         access_point = data.get('accessPoint', '')
+        logger.info(f"process_ble_packet: Access Point: {access_point or 'Not provided'}")
+        
         rssi = data.get('rssi', 0)
+        logger.info(f"process_ble_packet: RSSI: {rssi}")
+        
         timestamp = datetime.now(timezone.utc).isoformat()
+        logger.info(f"process_ble_packet: Timestamp: {timestamp}")
+        
+        # Log any manufacturer data and service UUIDs
+        manufacturer_data = data.get('manufacturerData', '')
+        logger.info(f"process_ble_packet: Manufacturer Data: {manufacturer_data[:20] + '...' if len(str(manufacturer_data)) > 20 else manufacturer_data or 'None'}")
+        
+        service_uuids = data.get('serviceUuids', [])
+        logger.info(f"process_ble_packet: Service UUIDs: {service_uuids or 'None'}")
+        
+        # Check if location data is available
+        location = data.get('location', {})
+        if location:
+            logger.info(f"process_ble_packet: Location data present: {list(location.keys())}")
+        else:
+            logger.info("process_ble_packet: No location data present")
         
         processed = {
             'type': 'ble',
@@ -65,122 +90,222 @@ class ArubaIoTTelemetryHandler:
             'device_id': device_id,
             'mac_address': mac_address,
             'rssi': rssi,
-            'manufacturer_data': data.get('manufacturerData', ''),
-            'service_uuids': data.get('serviceUuids', []),
-            'location': data.get('location', {}),
+            'manufacturer_data': manufacturer_data,
+            'service_uuids': service_uuids,
+            'location': location,
             'access_point': access_point,
             'reporter': access_point,  # The AP that reported this device
             'reported': device_id      # The device being reported
         }
         
+        logger.info("process_ble_packet: Updating BLE analytics")
         # Update BLE analytics
         self._update_ble_analytics(device_id, access_point, rssi, timestamp, mac_address)
+        logger.info("process_ble_packet: BLE packet processing complete")
         
         return processed
     
     def process_enocean_packet(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process EnOcean Alliance packet data"""
+        logger.info("process_enocean_packet: Processing EnOcean packet")
+        
+        device_id = data.get('deviceId', 'unknown')
+        logger.info(f"process_enocean_packet: Device ID: {device_id}")
+        
+        eep = data.get('eep', '')
+        logger.info(f"process_enocean_packet: EEP Profile: {eep or 'Not provided'}")
+        
+        payload = data.get('payload', '')
+        logger.info(f"process_enocean_packet: Payload: {payload[:20] + '...' if len(str(payload)) > 20 else payload or 'None'}")
+        
+        rssi = data.get('rssi', 0)
+        logger.info(f"process_enocean_packet: RSSI: {rssi}")
+        
+        access_point = data.get('accessPoint', '')
+        logger.info(f"process_enocean_packet: Access Point: {access_point or 'Not provided'}")
+        
+        # Check if location data is available
+        location = data.get('location', {})
+        if location:
+            logger.info(f"process_enocean_packet: Location data present: {list(location.keys())}")
+        else:
+            logger.info("process_enocean_packet: No location data present")
+        
+        timestamp = datetime.now(timezone.utc).isoformat()
+        logger.info(f"process_enocean_packet: Timestamp: {timestamp}")
+        
         processed = {
             'type': 'enocean',
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'device_id': data.get('deviceId', 'unknown'),
-            'eep': data.get('eep', ''),
-            'payload': data.get('payload', ''),
-            'rssi': data.get('rssi', 0),
-            'location': data.get('location', {}),
-            'access_point': data.get('accessPoint', '')
+            'timestamp': timestamp,
+            'device_id': device_id,
+            'eep': eep,
+            'payload': payload,
+            'rssi': rssi,
+            'location': location,
+            'access_point': access_point
         }
+        
+        logger.info("process_enocean_packet: EnOcean packet processing complete")
         return processed
     
     def process_wifi_packet(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process WiFi packet data"""
+        logger.info("process_wifi_packet: Processing WiFi packet")
+        
+        device_id = data.get('deviceId', 'unknown')
+        logger.info(f"process_wifi_packet: Device ID: {device_id}")
+        
+        mac_address = data.get('macAddress', '')
+        logger.info(f"process_wifi_packet: MAC Address: {mac_address or 'Not provided'}")
+        
+        ssid = data.get('ssid', '')
+        logger.info(f"process_wifi_packet: SSID: {ssid or 'Not provided'}")
+        
+        rssi = data.get('rssi', 0)
+        logger.info(f"process_wifi_packet: RSSI: {rssi}")
+        
+        channel = data.get('channel', 0)
+        logger.info(f"process_wifi_packet: Channel: {channel}")
+        
+        access_point = data.get('accessPoint', '')
+        logger.info(f"process_wifi_packet: Access Point: {access_point or 'Not provided'}")
+        
+        # Check if location data is available
+        location = data.get('location', {})
+        if location:
+            logger.info(f"process_wifi_packet: Location data present: {list(location.keys())}")
+        else:
+            logger.info("process_wifi_packet: No location data present")
+        
+        timestamp = datetime.now(timezone.utc).isoformat()
+        logger.info(f"process_wifi_packet: Timestamp: {timestamp}")
+        
         processed = {
             'type': 'wifi',
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'device_id': data.get('deviceId', 'unknown'),
-            'mac_address': data.get('macAddress', ''),
-            'ssid': data.get('ssid', ''),
-            'rssi': data.get('rssi', 0),
-            'channel': data.get('channel', 0),
-            'location': data.get('location', {}),
-            'access_point': data.get('accessPoint', '')
+            'timestamp': timestamp,
+            'device_id': device_id,
+            'mac_address': mac_address,
+            'ssid': ssid,
+            'rssi': rssi,
+            'channel': channel,
+            'location': location,
+            'access_point': access_point
         }
+        
+        logger.info("process_wifi_packet: WiFi packet processing complete")
         return processed
     
     def process_telemetry(self, raw_data) -> Dict[str, Any]:
         """Process incoming telemetry data"""
+        logger.info("process_telemetry: Starting telemetry processing")
+        logger.info(f"process_telemetry: Input data type: {type(raw_data)}")
+        
         # Handle different data types (bytes vs string)
         if isinstance(raw_data, bytes):
+            logger.info(f"process_telemetry: Processing binary data of {len(raw_data)} bytes")
             # Try different encodings if UTF-8 fails
             try:
                 # Try UTF-8 first (most common)
                 decoded_data = raw_data.decode('utf-8')
+                logger.info("process_telemetry: Successfully decoded data using UTF-8")
             except UnicodeDecodeError:
+                logger.info("process_telemetry: UTF-8 decoding failed, trying Latin-1")
                 try:
                     # Try Latin-1 which can decode any byte
                     decoded_data = raw_data.decode('latin-1')
-                    logger.warning("Received non-UTF8 data, falling back to latin-1 encoding")
-                except Exception:
-                    logger.error("Could not decode binary data with any encoding")
+                    logger.warning("process_telemetry: Received non-UTF8 data, falling back to latin-1 encoding")
+                except Exception as e:
+                    logger.error(f"process_telemetry: Could not decode binary data with any encoding: {e}")
                     return None
         else:
             # Already a string
             decoded_data = raw_data
+            logger.info(f"process_telemetry: Processing string data of length {len(decoded_data)}")
+            
+        # Log a safe preview of the data
+        if len(decoded_data) > 100:
+            logger.info(f"process_telemetry: Data preview: {decoded_data[:100]}...")
+        else:
+            logger.info(f"process_telemetry: Data: {decoded_data}")
             
         try:
             # Try to parse the JSON
+            logger.info("process_telemetry: Attempting to parse JSON")
             data = json.loads(decoded_data)
+            logger.info(f"process_telemetry: JSON parsing successful, keys: {list(data.keys())}")
+            
             packet_type = data.get('type', '').lower()
+            logger.info(f"process_telemetry: Detected packet type: '{packet_type}'")
             
             if packet_type == 'ble' or 'bluetooth' in packet_type:
+                logger.info(f"process_telemetry: Processing as BLE packet")
                 processed = self.process_ble_packet(data)
+                logger.info(f"process_telemetry: BLE packet processed, device_id: {processed.get('device_id', 'unknown')}")
             elif packet_type == 'enocean':
+                logger.info(f"process_telemetry: Processing as EnOcean packet")
                 processed = self.process_enocean_packet(data)
+                logger.info(f"process_telemetry: EnOcean packet processed, device_id: {processed.get('device_id', 'unknown')}")
             elif packet_type == 'wifi':
+                logger.info(f"process_telemetry: Processing as WiFi packet")
                 processed = self.process_wifi_packet(data)
+                logger.info(f"process_telemetry: WiFi packet processed, device_id: {processed.get('device_id', 'unknown')}")
             else:
                 # Generic processing for unknown packet types
+                logger.info(f"process_telemetry: Unknown packet type '{packet_type}', using generic processing")
                 processed = {
                     'type': packet_type or 'unknown',
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'raw_data': data,
                     'access_point': data.get('accessPoint', '')
                 }
+                logger.info(f"process_telemetry: Generic packet processed with type: {processed['type']}")
             
             # Store in memory (in production, use a proper database)
+            logger.info("process_telemetry: Adding processed packet to telemetry_data")
             self.telemetry_data.append(processed)
             
             # Keep only last 1000 entries
             if len(self.telemetry_data) > 1000:
+                logger.info("process_telemetry: Trimming telemetry_data to last 1000 entries")
                 self.telemetry_data = self.telemetry_data[-1000:]
             
             # Update device registry
             device_id = processed.get('device_id')
             if device_id and device_id != 'unknown':
+                logger.info(f"process_telemetry: Updating device registry for device_id: {device_id}")
                 self.device_registry[device_id] = {
                     'last_seen': processed['timestamp'],
                     'type': processed['type'],
                     'access_point': processed.get('access_point', '')
                 }
+                logger.info(f"process_telemetry: Device registry updated, total devices: {len(self.device_registry)}")
+            else:
+                logger.info("process_telemetry: No valid device_id found for device registry update")
             
-            logger.info(f"Processed {packet_type} packet from {device_id}")
+            logger.info(f"process_telemetry: Successfully processed {packet_type} packet from {device_id}")
             return processed
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
+            logger.error(f"process_telemetry: Failed to parse JSON: {e}")
             if len(decoded_data) > 200:
-                logger.debug(f"Raw data (first 200 chars): {decoded_data[:200]}...")
+                logger.debug(f"process_telemetry: Raw data (first 200 chars): {decoded_data[:200]}...")
             else:
-                logger.debug(f"Raw data: {decoded_data}")
+                logger.debug(f"process_telemetry: Raw data: {decoded_data}")
             return None
         except Exception as e:
-            logger.error(f"Error processing telemetry: {e}")
+            logger.error(f"process_telemetry: Error processing telemetry: {e}")
+            logger.error(f"process_telemetry: Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"process_telemetry: Traceback: {traceback.format_exc()}")
             return None
 
     def _update_ble_analytics(self, device_id: str, access_point: str, rssi: int, timestamp: str, mac_address: str):
         """Update BLE analytics data"""
+        logger.info(f"_update_ble_analytics: Updating analytics for device {device_id} from AP {access_point}")
+        
         # Update reporter (AP) statistics
         if access_point not in self.ble_analytics['reporter_stats']:
+            logger.info(f"_update_ble_analytics: First time seeing AP {access_point}, initializing stats")
             self.ble_analytics['reporter_stats'][access_point] = {
                 'devices_seen': set(),
                 'total_packets': 0,
@@ -191,18 +316,32 @@ class ArubaIoTTelemetryHandler:
             }
         
         ap_stats = self.ble_analytics['reporter_stats'][access_point]
+        
+        # Update AP statistics
+        prev_device_count = len(ap_stats['devices_seen'])
         ap_stats['devices_seen'].add(device_id)
+        
+        if len(ap_stats['devices_seen']) > prev_device_count:
+            logger.info(f"_update_ble_analytics: AP {access_point} detected a new device (total: {len(ap_stats['devices_seen'])})")
+        
         ap_stats['total_packets'] += 1
         ap_stats['rssi_readings'].append(rssi)
         ap_stats['avg_rssi'] = sum(ap_stats['rssi_readings']) / len(ap_stats['rssi_readings'])
         ap_stats['last_seen'] = timestamp
         
+        logger.info(f"_update_ble_analytics: AP {access_point} stats updated - "
+                   f"packets: {ap_stats['total_packets']}, "
+                   f"devices: {len(ap_stats['devices_seen'])}, "
+                   f"avg RSSI: {ap_stats['avg_rssi']:.2f}")
+        
         # Keep only last 100 RSSI readings per AP
         if len(ap_stats['rssi_readings']) > 100:
+            logger.info(f"_update_ble_analytics: Trimming RSSI history for AP {access_point}")
             ap_stats['rssi_readings'] = ap_stats['rssi_readings'][-100:]
         
         # Update device (reported) statistics
         if device_id not in self.ble_analytics['device_stats']:
+            logger.info(f"_update_ble_analytics: First time seeing device {device_id}, initializing stats")
             self.ble_analytics['device_stats'][device_id] = {
                 'reporters': set(),
                 'total_packets': 0,
@@ -217,36 +356,69 @@ class ArubaIoTTelemetryHandler:
             }
         
         device_stats = self.ble_analytics['device_stats'][device_id]
+        
+        # Update device statistics
+        prev_reporter_count = len(device_stats['reporters'])
         device_stats['reporters'].add(access_point)
+        
+        if len(device_stats['reporters']) > prev_reporter_count:
+            logger.info(f"_update_ble_analytics: Device {device_id} detected by a new AP (total: {len(device_stats['reporters'])})")
+        
         device_stats['total_packets'] += 1
         device_stats['rssi_readings'].append(rssi)
+        
+        # Update RSSI statistics
+        old_best_rssi = device_stats['best_rssi']
+        old_worst_rssi = device_stats['worst_rssi']
         device_stats['best_rssi'] = max(device_stats['best_rssi'], rssi)
         device_stats['worst_rssi'] = min(device_stats['worst_rssi'], rssi)
+        
+        if device_stats['best_rssi'] > old_best_rssi:
+            logger.info(f"_update_ble_analytics: New best RSSI for device {device_id}: {device_stats['best_rssi']}")
+        if device_stats['worst_rssi'] < old_worst_rssi:
+            logger.info(f"_update_ble_analytics: New worst RSSI for device {device_id}: {device_stats['worst_rssi']}")
+        
         device_stats['avg_rssi'] = sum(device_stats['rssi_readings']) / len(device_stats['rssi_readings'])
         device_stats['last_seen'] = timestamp
         
+        logger.info(f"_update_ble_analytics: Device {device_id} stats updated - "
+                   f"packets: {device_stats['total_packets']}, "
+                   f"APs: {len(device_stats['reporters'])}, "
+                   f"avg RSSI: {device_stats['avg_rssi']:.2f}")
+        
         # Update primary reporter (AP with best average signal)
+        old_primary = device_stats['primary_reporter']
         if len(device_stats['rssi_readings']) > 5:  # Only after some readings
             # Find AP with best average RSSI for this device
             best_ap = access_point
             best_avg = rssi
+            logger.info(f"_update_ble_analytics: Evaluating primary reporter for device {device_id}")
+            
             for ap in device_stats['reporters']:
                 if ap in self.ble_analytics['proximity_map'].get(device_id, {}):
                     ap_avg = self.ble_analytics['proximity_map'][device_id][ap]['avg_rssi']
+                    logger.info(f"_update_ble_analytics: AP {ap} has avg RSSI of {ap_avg:.2f} for device {device_id}")
                     if ap_avg > best_avg:
                         best_avg = ap_avg
                         best_ap = ap
+                        logger.info(f"_update_ble_analytics: AP {ap} is now best candidate with RSSI {best_avg:.2f}")
+            
             device_stats['primary_reporter'] = best_ap
+            if old_primary != best_ap:
+                logger.info(f"_update_ble_analytics: Primary reporter for device {device_id} changed from {old_primary} to {best_ap}")
         
         # Keep only last 100 RSSI readings per device
         if len(device_stats['rssi_readings']) > 100:
+            logger.info(f"_update_ble_analytics: Trimming RSSI history for device {device_id}")
             device_stats['rssi_readings'] = device_stats['rssi_readings'][-100:]
         
         # Update proximity mapping
         if device_id not in self.ble_analytics['proximity_map']:
+            logger.info(f"_update_ble_analytics: Initializing proximity map for device {device_id}")
             self.ble_analytics['proximity_map'][device_id] = {}
         
         if access_point not in self.ble_analytics['proximity_map'][device_id]:
+            logger.info(f"_update_ble_analytics: First proximity data for device {device_id} with AP {access_point}")
             self.ble_analytics['proximity_map'][device_id][access_point] = {
                 'rssi_readings': [],
                 'avg_rssi': rssi,
@@ -257,13 +429,21 @@ class ArubaIoTTelemetryHandler:
         
         proximity_data = self.ble_analytics['proximity_map'][device_id][access_point]
         proximity_data['rssi_readings'].append(rssi)
+        old_avg = proximity_data['avg_rssi']
         proximity_data['avg_rssi'] = sum(proximity_data['rssi_readings']) / len(proximity_data['rssi_readings'])
         proximity_data['packet_count'] += 1
         proximity_data['last_seen'] = timestamp
         
+        logger.info(f"_update_ble_analytics: Proximity data updated for device {device_id} with AP {access_point} - "
+                  f"avg RSSI: {proximity_data['avg_rssi']:.2f} (was {old_avg:.2f}), "
+                  f"packets: {proximity_data['packet_count']}")
+        
         # Keep only last 50 RSSI readings per device-AP pair
         if len(proximity_data['rssi_readings']) > 50:
+            logger.info(f"_update_ble_analytics: Trimming proximity RSSI history for device {device_id} with AP {access_point}")
             proximity_data['rssi_readings'] = proximity_data['rssi_readings'][-50:]
+        
+        logger.info(f"_update_ble_analytics: Analytics update complete for device {device_id}")
 
 # Initialize telemetry handler
 telemetry_handler = ArubaIoTTelemetryHandler()
