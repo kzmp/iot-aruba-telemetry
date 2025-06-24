@@ -254,26 +254,51 @@ async def aruba_websocket_server(websocket, path):
     # Authentication: Check for token in query parameters or headers
     # Note: '1234' is a temporary token for development/testing purposes only
     valid_tokens = os.getenv('ARUBA_AUTH_TOKENS', '1234,admin,aruba-iot').split(',')
-    token = None
     
-    # Try to get token from query parameters first
+    # Default clientID/accessToken for temporary testing purposes
+    valid_client_ids = os.getenv('ARUBA_CLIENT_IDS', 'test-client-1,aruba-ap').split(',')
+    valid_access_tokens = os.getenv('ARUBA_ACCESS_TOKENS', '1234,admin-token').split(',')
+    
+    token = None
+    client_id = None
+    access_token = None
+    
+    # Try to get authentication info from query parameters first
     if '?' in path:
         from urllib.parse import parse_qs, urlparse
         parsed_url = urlparse(path)
         query_params = parse_qs(parsed_url.query)
         token = query_params.get('token', [None])[0]
+        client_id = query_params.get('clientID', [None])[0]
+        access_token = query_params.get('accessToken', [None])[0]
     
     # If no token in query, check WebSocket headers
-    if not token:
+    if not token and not access_token:
         auth_header = websocket.request_headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
             token = auth_header[7:]  # Remove 'Bearer ' prefix
         else:
             # Check for custom token header
             token = websocket.request_headers.get('X-Auth-Token')
+            # Also check for client ID and access token headers
+            client_id = websocket.request_headers.get('X-Client-ID')
+            access_token = websocket.request_headers.get('X-Access-Token')
     
-    # Validate token
-    if not token or token not in valid_tokens:
+    # Validate token (supporting multiple auth methods)
+    is_authenticated = False
+    
+    # Method 1: Simple token
+    if token and token in valid_tokens:
+        is_authenticated = True
+        logger.info(f"Client authenticated using token")
+    
+    # Method 2: ClientID + AccessToken pair
+    if client_id and access_token:
+        if client_id in valid_client_ids and access_token in valid_access_tokens:
+            is_authenticated = True
+            logger.info(f"Client authenticated using clientID/accessToken: {client_id}")
+    
+    if not is_authenticated:
         logger.warning(f"Authentication failed for {client_address[0]} - Invalid or missing token")
         await websocket.close(code=1008, reason="Authentication required")
         return

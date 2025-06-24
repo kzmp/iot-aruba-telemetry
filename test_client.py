@@ -95,18 +95,27 @@ class ArubaAPSimulator:
         packet_generator = random.choices(packet_types, weights=weights)[0]
         return packet_generator()
 
-async def simulate_aruba_ap(server_uri, duration=300):
+async def simulate_aruba_ap(server_uri, duration=300, client_id=None, access_token=None):
     """
     Simulate an Aruba access point sending data to the server
     
     Args:
         server_uri: WebSocket server URI (e.g., "ws://localhost:9191")
         duration: Simulation duration in seconds
+        client_id: Optional client_id for header-based authentication
+        access_token: Optional access_token for header-based authentication
     """
     simulator = ArubaAPSimulator()
     
+    # Add custom headers for additional authentication methods
+    extra_headers = {}
+    if client_id:
+        extra_headers["X-Client-ID"] = client_id
+    if access_token:
+        extra_headers["X-Access-Token"] = access_token
+    
     try:
-        async with websockets.connect(server_uri) as websocket:
+        async with websockets.connect(server_uri, extra_headers=extra_headers) as websocket:
             print(f"Connected to {server_uri}")
             print(f"Starting simulation for {duration} seconds...")
             
@@ -147,6 +156,12 @@ if __name__ == "__main__":
                         help="Simulation duration in seconds (default: 60)")
     parser.add_argument("--token", default="1234",
                         help="Authentication token (default: 1234)")
+    parser.add_argument("--client-id", default="",
+                        help="Client ID for authentication (default: none)")
+    parser.add_argument("--access-token", default="",
+                        help="Access token for authentication (default: none)")
+    parser.add_argument("--auth-method", default="token", choices=["token", "client"],
+                        help="Authentication method: 'token' or 'client' (default: token)")
     
     args = parser.parse_args()
     
@@ -154,20 +169,41 @@ if __name__ == "__main__":
     print("==================")
     print(f"Server: {args.server}")
     print(f"Duration: {args.duration} seconds")
-    print(f"Auth Token: {args.token}")
-    print()
     
-    # Add path and token to server URI
+    # Add path to server URI
     base_uri = args.server
     if not base_uri.endswith('/'):
         base_uri = f"{base_uri}/aruba"
     else:
         base_uri = f"{base_uri}aruba"
-        
-    # Add token to server URI
-    if '?' in base_uri:
-        server_uri = f"{base_uri}&token={args.token}"
-    else:
-        server_uri = f"{base_uri}?token={args.token}"
     
-    asyncio.run(simulate_aruba_ap(server_uri, args.duration))
+    # Determine authentication method
+    auth_params = ""
+    if args.auth_method == "token":
+        print(f"Auth Method: Token")
+        print(f"Auth Token: {args.token}")
+        auth_params = f"token={args.token}"
+    else:
+        print(f"Auth Method: Client ID + Access Token")
+        print(f"Client ID: {args.client_id}")
+        print(f"Access Token: {'*' * len(args.access_token)}")
+        auth_params = f"clientID={args.client_id}&accessToken={args.access_token}"
+    
+    print()
+        
+    # Add authentication to server URI
+    if '?' in base_uri:
+        server_uri = f"{base_uri}&{auth_params}"
+    else:
+        server_uri = f"{base_uri}?{auth_params}"
+    
+    # Run the simulation with the appropriate authentication method
+    if args.auth_method == "client":
+        asyncio.run(simulate_aruba_ap(
+            server_uri, 
+            args.duration,
+            client_id=args.client_id,
+            access_token=args.access_token
+        ))
+    else:
+        asyncio.run(simulate_aruba_ap(server_uri, args.duration))
