@@ -5,12 +5,31 @@ echo 🚀 Aruba IoT Telemetry Server - Windows Setup
 echo ============================================
 echo.
 
+REM Check if we're in the right directory
+if not exist app.py (
+    echo ❌ app.py not found in current directory!
+    echo Please make sure you're running this script from the project folder
+    echo.
+    echo If you cloned with GitHub Desktop, the folder should be something like:
+    echo C:\Users\%USERNAME%\Documents\GitHub\iot-aruba-telemetry
+    echo.
+    echo Current directory: %CD%
+    pause
+    exit /b 1
+)
+
 REM Check if Python is installed
+echo 📋 Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Python is not installed or not in PATH
+    echo.
     echo Please install Python from https://www.python.org/downloads/windows/
-    echo Make sure to check "Add Python to PATH" during installation
+    echo ⚠️  IMPORTANT: Make sure to check "Add Python to PATH" during installation
+    echo.
+    echo After installing Python:
+    echo 1. Restart Command Prompt
+    echo 2. Run this script again
     pause
     exit /b 1
 )
