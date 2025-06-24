@@ -55,7 +55,9 @@ async def test_websocket_connection():
             }
             
             print(f"📤 Sending test packet...")
-            await websocket.send(json.dumps(test_packet))
+            # Ensure proper encoding - using utf-8 for JSON data
+            packet_json = json.dumps(test_packet)
+            await websocket.send(packet_json)
             
             # Wait for acknowledgment
             try:
@@ -123,7 +125,9 @@ async def test_websocket_connection_with_params(server_url=None, client_id=None,
             }
             
             print(f"📤 Sending test packet...")
-            await websocket.send(json.dumps(test_packet))
+            # Ensure proper encoding - using utf-8 for JSON data
+            packet_json = json.dumps(test_packet)
+            await websocket.send(packet_json)
             
             # Wait for acknowledgment
             try:

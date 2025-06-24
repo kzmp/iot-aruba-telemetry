@@ -107,10 +107,29 @@ class ArubaIoTTelemetryHandler:
         }
         return processed
     
-    def process_telemetry(self, raw_data: str) -> Dict[str, Any]:
+    def process_telemetry(self, raw_data) -> Dict[str, Any]:
         """Process incoming telemetry data"""
+        # Handle different data types (bytes vs string)
+        if isinstance(raw_data, bytes):
+            # Try different encodings if UTF-8 fails
+            try:
+                # Try UTF-8 first (most common)
+                decoded_data = raw_data.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    # Try Latin-1 which can decode any byte
+                    decoded_data = raw_data.decode('latin-1')
+                    logger.warning("Received non-UTF8 data, falling back to latin-1 encoding")
+                except Exception:
+                    logger.error("Could not decode binary data with any encoding")
+                    return None
+        else:
+            # Already a string
+            decoded_data = raw_data
+            
         try:
-            data = json.loads(raw_data)
+            # Try to parse the JSON
+            data = json.loads(decoded_data)
             packet_type = data.get('type', '').lower()
             
             if packet_type == 'ble' or 'bluetooth' in packet_type:
@@ -149,6 +168,10 @@ class ArubaIoTTelemetryHandler:
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {e}")
+            if len(decoded_data) > 200:
+                logger.debug(f"Raw data (first 200 chars): {decoded_data[:200]}...")
+            else:
+                logger.debug(f"Raw data: {decoded_data}")
             return None
         except Exception as e:
             logger.error(f"Error processing telemetry: {e}")
@@ -321,9 +344,16 @@ async def aruba_websocket_server(websocket, path):
     
     try:
         async for message in websocket:
-            logger.info(f"Received message from {client_address[0]}: {message[:200]}...")
+            try:
+                # Log received message, safely truncating if necessary
+                if isinstance(message, bytes):
+                    logger.info(f"Received binary message from {client_address[0]} ({len(message)} bytes)")
+                else:
+                    logger.info(f"Received message from {client_address[0]}: {message[:200]}...")
+            except:
+                logger.info(f"Received message from {client_address[0]} (unprintable format)")
             
-            # Process the telemetry data
+            # Process the telemetry data (now handles bytes or string)
             processed_data = telemetry_handler.process_telemetry(message)
             
             if processed_data:
@@ -533,7 +563,9 @@ def start_aruba_websocket_server():
         # Allow larger message sizes for telemetry data
         max_size=1024*1024,  # 1MB
         # Compression for better performance
-        compression=None
+        compression=None,
+        # Support for binary messages
+        subprotocols=["binary", "json"]
     )
     return start_server
 
