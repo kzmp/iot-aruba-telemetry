@@ -247,21 +247,51 @@ telemetry_handler = ArubaIoTTelemetryHandler()
 
 # WebSocket server for receiving data from Aruba APs
 async def aruba_websocket_server(websocket, path):
-    """WebSocket server to receive data from Aruba access points"""
+    """WebSocket server to receive data from Aruba access points with authentication"""
     client_address = websocket.remote_address
-    logger.info(f"New Aruba AP connection from {client_address[0]}:{client_address[1]} on path: {path}")
+    logger.info(f"New connection attempt from {client_address[0]}:{client_address[1]} on path: {path}")
+    
+    # Authentication: Check for token in query parameters or headers
+    valid_tokens = os.getenv('ARUBA_AUTH_TOKENS', '1234,admin,aruba-iot').split(',')
+    token = None
+    
+    # Try to get token from query parameters first
+    if '?' in path:
+        from urllib.parse import parse_qs, urlparse
+        parsed_url = urlparse(path)
+        query_params = parse_qs(parsed_url.query)
+        token = query_params.get('token', [None])[0]
+    
+    # If no token in query, check WebSocket headers
+    if not token:
+        auth_header = websocket.request_headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+        else:
+            # Check for custom token header
+            token = websocket.request_headers.get('X-Auth-Token')
+    
+    # Validate token
+    if not token or token not in valid_tokens:
+        logger.warning(f"Authentication failed for {client_address[0]} - Invalid or missing token")
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+    
+    logger.info(f"✅ Authenticated Aruba AP connection from {client_address[0]}:{client_address[1]}")
     
     # Send welcome message to confirm connection
     try:
         await websocket.send(json.dumps({
-            "status": "connected",
-            "message": "Aruba IoT Telemetry Server Ready",
+            "status": "authenticated",
+            "message": "Aruba IoT Telemetry Server Ready - Authentication Successful",
             "timestamp": datetime.now().isoformat(),
-            "server_version": "1.0"
+            "server_version": "1.0",
+            "client_ip": client_address[0]
         }))
-        logger.info(f"Sent welcome message to {client_address}")
+        logger.info(f"Sent authenticated welcome message to {client_address}")
     except Exception as e:
         logger.error(f"Failed to send welcome message: {e}")
+        return
     
     try:
         async for message in websocket:

@@ -1,101 +1,73 @@
 @echo off
-title Aruba IoT Telemetry - Windows Installation
-
-REM ========================================================================
-REM  🎯 ARUBA IOT TELEMETRY - WINDOWS INSTALLER LAUNCHER
-REM ========================================================================
+REM Aruba IoT Telemetry - Windows Installer (Ultra Simple)
+REM Just double-click this file after cloning with GitHub Desktop
 
 echo.
-echo ╔═══════════════════════════════════════════════════════════════════════╗
-echo ║                    🌐 ARUBA IOT TELEMETRY SERVER 🌐                   ║
-echo ║                         Windows Quick Installer                       ║
-echo ╚═══════════════════════════════════════════════════════════════════════╝
-echo.
-echo Welcome! This installer will set up the Aruba IoT Telemetry Server
-echo on your Windows computer in just a few clicks.
-echo.
-echo What this installer does:
-echo  ✅ Checks your Python installation
-echo  ✅ Sets up the application environment  
-echo  ✅ Installs all required components
-echo  ✅ Configures Windows Firewall
-echo  ✅ Creates secure authentication tokens
-echo  ✅ Tests the installation
-echo  ✅ Starts the server (optional)
+echo 🎯 Aruba IoT Telemetry - Simple Windows Installer
+echo ===============================================
 echo.
 
-REM Check if we're in the right location
+REM Check if we're in the right place
 if not exist app.py (
-    echo ❌ ERROR: Installation files not found!
-    echo.
-    echo This installer must be run from the Aruba IoT project folder.
-    echo.
-    echo 💡 If you downloaded from GitHub:
-    echo    1. Extract the ZIP file completely
-    echo    2. Open the extracted folder
-    echo    3. Look for this file: setup_windows_oneclick.bat
-    echo    4. Double-click it to run the installer
-    echo.
-    echo Current location: %CD%
-    echo Looking for: app.py, requirements.txt, templates folder
+    echo ❌ Please make sure you're running this from the project folder
+    echo   (the folder that contains app.py)
     echo.
     pause
     exit /b 1
 )
 
-echo ✅ Installation files found
+echo ✅ Project folder found
 echo.
 
-REM Check if Python is available
+REM Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ⚠️  PYTHON NOT DETECTED
+    echo ❌ Python not found!
     echo.
-    echo The Aruba IoT Telemetry Server requires Python 3.8 or higher.
+    echo Please install Python from: https://www.python.org/downloads/
+    echo ⚠️  IMPORTANT: Check "Add Python to PATH" during installation
     echo.
-    echo 🔧 AUTOMATIC SOLUTION:
-    echo 1. Click 'Yes' to open the Python download page
-    echo 2. Download Python (click the big yellow button)
-    echo 3. During installation, CHECK: "Add Python to PATH"
-    echo 4. After installation, run this installer again
-    echo.
-    set /p download="Open Python download page? [Y/N]: "
-    if /i "!download!"=="Y" (
-        echo Opening Python download page...
-        start https://www.python.org/downloads/windows/
-    )
-    echo.
-    echo Please install Python and run this installer again.
+    echo After installing Python, run this script again.
     pause
     exit /b 1
 )
 
-for /f "tokens=2" %%v in ('python --version') do set "PYTHON_VER=%%v"
-echo ✅ Python detected: %PYTHON_VER%
+echo ✅ Python found
 echo.
 
-echo 🚀 READY TO INSTALL
-echo ===================
-echo The installation will begin when you press Enter.
-echo This process typically takes 2-5 minutes.
-echo.
+REM Quick setup
+echo 🔧 Setting up environment...
+python -m venv .venv
+call .venv\Scripts\activate.bat
+pip install -r requirements.txt --quiet
 
-set /p proceed="Press ENTER to start the installation (or type 'exit' to cancel): "
-if /i "!proceed!"=="exit" (
-    echo Installation cancelled.
-    pause
-    exit /b 0
+REM Create basic config
+if not exist .env (
+    echo Creating configuration...
+    (
+        echo FLASK_HOST=0.0.0.0
+        echo FLASK_PORT=9090
+        echo FLASK_DEBUG=False
+        echo SECRET_KEY=simple-setup-%RANDOM%
+        echo ARUBA_WS_HOST=0.0.0.0
+        echo ARUBA_WS_PORT=9191
+        echo ARUBA_AUTH_TOKENS=admin,test-token,aruba-iot
+        echo LOG_LEVEL=INFO
+    ) > .env
 )
 
 echo.
-echo 🔄 Starting installation...
+echo ✅ Setup complete!
+echo.
+echo 🚀 Starting server...
+echo   Web Dashboard: http://localhost:9090
+echo   WebSocket: ws://localhost:9191/aruba?token=admin
+echo.
+echo ⚠️  Press Ctrl+C to stop the server
 echo.
 
-REM Run the comprehensive setup
-call setup_windows_oneclick.bat
+python app.py
 
 echo.
-echo 👋 Installation process completed.
-echo Check the messages above for the results.
-echo.
+echo Server stopped.
 pause

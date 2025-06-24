@@ -145,6 +145,8 @@ if __name__ == "__main__":
                         help="WebSocket server URI (default: ws://localhost:9191)")
     parser.add_argument("--duration", type=int, default=60,
                         help="Simulation duration in seconds (default: 60)")
+    parser.add_argument("--token", default="1234",
+                        help="Authentication token (default: 1234)")
     
     args = parser.parse_args()
     
@@ -152,6 +154,13 @@ if __name__ == "__main__":
     print("==================")
     print(f"Server: {args.server}")
     print(f"Duration: {args.duration} seconds")
+    print(f"Auth Token: {args.token}")
     print()
     
-    asyncio.run(simulate_aruba_ap(args.server, args.duration))
+    # Add token to server URI
+    if '?' in args.server:
+        server_uri = f"{args.server}&token={args.token}"
+    else:
+        server_uri = f"{args.server}?token={args.token}"
+    
+    asyncio.run(simulate_aruba_ap(server_uri, args.duration))

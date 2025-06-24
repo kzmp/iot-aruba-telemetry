@@ -1,486 +1,401 @@
 @echo off
-setlocal enabledelayedexpansion
-title Aruba IoT Telemetry - 1-Click Windows Setup
+REM Aruba IoT Telemetry Server - One-Click Windows Setup
+REM This script automates the complete installation process
 
-REM ========================================================================
-REM  🚀 ARUBA IOT TELEMETRY - COMPLETE WINDOWS SETUP (1-CLICK)
-REM ========================================================================
+SETLOCAL EnableDelayedExpansion
 
 echo.
-echo  ██████╗ ███╗   ██╗███████╗     ██████╗██╗     ██╗ ██████╗██╗  ██╗
-echo ██╔═══██╗████╗  ██║██╔════╝    ██╔════╝██║     ██║██╔════╝██║ ██╔╝
-echo ██║   ██║██╔██╗ ██║█████╗      ██║     ██║     ██║██║     █████╔╝ 
-echo ██║   ██║██║╚██╗██║██╔══╝      ██║     ██║     ██║██║     ██╔═██╗ 
-echo ╚██████╔╝██║ ╚████║███████╗    ╚██████╗███████╗██║╚██████╗██║  ██╗
-echo  ╚═════╝ ╚═╝  ╚═══╝╚══════╝     ╚═════╝╚══════╝╚═╝ ╚═════╝╚═╝  ╚═╝
-echo.
-echo               🌐 Aruba IoT Telemetry Server Setup 🌐
-echo                    Complete Windows Installation
-echo.
-echo ========================================================================
-echo This ONE-CLICK setup will automatically:
-echo   ✅ Validate your system and project files
-echo   ✅ Check/guide Python installation  
-echo   ✅ Create Python virtual environment
-echo   ✅ Install all required dependencies
-echo   ✅ Generate secure configuration with random tokens
-echo   ✅ Configure Windows Firewall (with admin privileges)
-echo   ✅ Test the complete installation
-echo   ✅ Provide all connection information
-echo   ✅ Optionally start the server immediately
-echo ========================================================================
+echo 🚀 Aruba IoT Telemetry Server - One-Click Windows Setup
+echo =====================================================
+echo This script will automatically:
+echo ✅ Check Python installation
+echo ✅ Create virtual environment
+echo ✅ Install all dependencies
+echo ✅ Configure environment variables
+echo ✅ Setup Windows Firewall
+echo ✅ Test the installation
+echo ✅ Start the server
 echo.
 
-set "SETUP_SUCCESS=1"
-set "TOTAL_STEPS=7"
+REM Set colors for better output
+for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
+set "GREEN=%ESC%[92m"
+set "RED=%ESC%[91m"
+set "YELLOW=%ESC%[93m"
+set "BLUE=%ESC%[94m"
+set "RESET=%ESC%[0m"
 
-REM ========================================================================
-REM  📋 STEP 1/7: SYSTEM VALIDATION
-REM ========================================================================
+REM Initialize variables
+set "SETUP_ERROR=0"
+set "PYTHON_OK=0"
+set "VENV_OK=0"
+set "DEPS_OK=0"
+set "CONFIG_OK=0"
+set "FIREWALL_OK=0"
 
-echo [1/%TOTAL_STEPS%] 📋 SYSTEM VALIDATION
-echo ================================================
+echo %BLUE%Step 1: Checking prerequisites...%RESET%
+echo ==========================================
 
-REM Check project directory
+REM Check if we're in the right directory
 if not exist app.py (
-    echo ❌ CRITICAL: app.py not found!
+    echo %RED%❌ app.py not found in current directory!%RESET%
+    echo Please make sure you're running this script from the project folder
     echo.
-    echo 📁 You must run this script from the Aruba IoT project folder.
-    echo    Current location: %CD%
+    echo If you cloned with GitHub Desktop, the folder should be something like:
+    echo C:\Users\%USERNAME%\Documents\GitHub\iot-aruba-telemetry
     echo.
-    echo 💡 If you used GitHub Desktop:
-    echo    1. Open GitHub Desktop
-    echo    2. Go to Repository → Show in Explorer  
-    echo    3. Double-click setup_windows.bat from that folder
+    echo Current directory: %CD%
     echo.
-    pause
-    exit /b 1
+    echo %YELLOW%Would you like to navigate to the correct folder? (y/n)%RESET%
+    set /p navigate="Enter your choice: "
+    if /i "!navigate!"=="y" (
+        echo Please enter the full path to your iot-aruba-telemetry folder:
+        set /p project_path="Path: "
+        if exist "!project_path!\app.py" (
+            cd /d "!project_path!"
+            echo %GREEN%✅ Changed to correct directory%RESET%
+        ) else (
+            echo %RED%❌ app.py not found in specified directory%RESET%
+            pause
+            exit /b 1
+        )
+    ) else (
+        pause
+        exit /b 1
+    )
 )
 
-if not exist requirements.txt (
-    echo ❌ requirements.txt missing
-    set "SETUP_SUCCESS=0"
-)
-if not exist templates (
-    echo ❌ templates folder missing  
-    set "SETUP_SUCCESS=0"
-)
+echo %GREEN%✅ Project directory verified%RESET%
 
-if !SETUP_SUCCESS! EQU 0 (
-    echo ❌ Project files incomplete. Please re-clone the repository.
-    pause
-    exit /b 1
-)
-
-echo ✅ Project structure validated
-echo ✅ Required files found: app.py, requirements.txt, templates/
-
-REM ========================================================================
-REM  🐍 STEP 2/7: PYTHON VERIFICATION
-REM ========================================================================
-
+REM Check if Python is installed
 echo.
-echo [2/%TOTAL_STEPS%] 🐍 PYTHON VERIFICATION
-echo ================================================
-
+echo Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ CRITICAL: Python not found!
+    echo %RED%❌ Python is not installed or not in PATH%RESET%
     echo.
-    echo 🔧 AUTOMATIC SOLUTION:
-    echo    This script will open the Python download page for you.
-    echo    Please download Python 3.8+ and during installation:
-    echo    ⚠️  CHECK THE BOX: "Add Python to PATH"
+    echo %YELLOW%Option 1: Download and Install Python%RESET%
+    echo =====================================
+    echo 1. Go to https://www.python.org/downloads/windows/
+    echo 2. Download Python 3.8 or newer
+    echo 3. During installation, CHECK "Add Python to PATH"
+    echo 4. Restart this script after installation
     echo.
-    echo    After installation, restart Command Prompt and run this script again.
-    echo.
-    set /p open_page="Open Python download page now? [Y/N]: "
-    if /i "!open_page!"=="Y" (
-        start https://www.python.org/downloads/windows/
+    echo %YELLOW%Option 2: Try to detect Python in common locations%RESET%
+    echo =================================================
+    
+    REM Try to find Python in common locations
+    set "PYTHON_FOUND=0"
+    for %%p in (
+        "C:\Python3*\python.exe"
+        "C:\Program Files\Python3*\python.exe" 
+        "C:\Program Files (x86)\Python3*\python.exe"
+        "%LOCALAPPDATA%\Programs\Python\Python3*\python.exe"
+        "%USERPROFILE%\AppData\Local\Programs\Python\Python3*\python.exe"
+    ) do (
+        if exist "%%p" (
+            echo Found Python at: %%p
+            set "PYTHON_PATH=%%p"
+            set "PYTHON_FOUND=1"
+            goto :python_found
+        )
     )
-    echo.
-    echo 🔄 Please install Python and run this script again.
-    pause
-    exit /b 1
+    
+    :python_found
+    if !PYTHON_FOUND!==1 (
+        echo %YELLOW%Found Python installation. Adding to PATH temporarily...%RESET%
+        for %%i in ("!PYTHON_PATH!") do set "PYTHON_DIR=%%~dpi"
+        set "PATH=!PYTHON_DIR!;!PYTHON_DIR!Scripts;!PATH!"
+        python --version >nul 2>&1
+        if not errorlevel 1 (
+            echo %GREEN%✅ Python is now accessible%RESET%
+            set "PYTHON_OK=1"
+        )
+    )
+    
+    if !PYTHON_OK!==0 (
+        echo %RED%❌ Could not find or access Python%RESET%
+        echo Please install Python and try again
+        pause
+        exit /b 1
+    )
+) else (
+    set "PYTHON_OK=1"
+    echo %GREEN%✅ Python found:%RESET%
+    python --version
 )
 
-for /f "tokens=2" %%v in ('python --version') do set "PY_VERSION=%%v"
-echo ✅ Python detected: %PY_VERSION%
-echo ✅ Python installation verified
-
-REM ========================================================================
-REM  📦 STEP 3/7: VIRTUAL ENVIRONMENT SETUP
-REM ========================================================================
-
 echo.
-echo [3/%TOTAL_STEPS%] 📦 VIRTUAL ENVIRONMENT SETUP
-echo ================================================
+echo %BLUE%Step 2: Creating Python virtual environment...%RESET%
+echo ==============================================
 
 if exist .venv (
-    echo ⚠️  Virtual environment already exists
-    set /p recreate="Recreate virtual environment? [Y/N]: "
-    if /i "!recreate!"=="Y" (
-        echo 🗑️  Removing existing virtual environment...
-        rmdir /s /q .venv
-    ) else (
-        echo ✅ Using existing virtual environment
-        goto :activate_venv
+    echo %YELLOW%⚠️  Virtual environment already exists%RESET%
+    echo Would you like to recreate it? (recommended) (y/n)
+    set /p recreate="Enter your choice: "
+    if /i "!recreate!"=="y" (
+        echo Removing existing virtual environment...
+        rmdir /s /q .venv 2>nul
     )
 )
 
-echo 🔧 Creating Python virtual environment...
-python -m venv .venv
-if errorlevel 1 (
-    echo ❌ Failed to create virtual environment
-    echo 💡 This might be caused by:
-    echo    - Insufficient disk space
-    echo    - Antivirus software interference
-    echo    - Python installation issues
-    pause
-    exit /b 1
+if not exist .venv (
+    echo Creating virtual environment...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo %RED%❌ Failed to create virtual environment%RESET%
+        set "SETUP_ERROR=1"
+        goto :error_summary
+    ) else (
+        echo %GREEN%✅ Virtual environment created successfully%RESET%
+        set "VENV_OK=1"
+    )
+) else (
+    echo %GREEN%✅ Using existing virtual environment%RESET%
+    set "VENV_OK=1"
 )
-echo ✅ Virtual environment created successfully
 
-:activate_venv
-echo 🔌 Activating virtual environment...
+echo.
+echo %BLUE%Step 3: Installing dependencies...%RESET%
+echo ==================================
+
+echo Activating virtual environment...
 call .venv\Scripts\activate.bat
 if errorlevel 1 (
-    echo ❌ Failed to activate virtual environment
-    pause
-    exit /b 1
+    echo %RED%❌ Failed to activate virtual environment%RESET%
+    set "SETUP_ERROR=1"
+    goto :error_summary
 )
-echo ✅ Virtual environment activated
 
-REM ========================================================================
-REM  📚 STEP 4/7: DEPENDENCY INSTALLATION
-REM ========================================================================
-
-echo.
-echo [4/%TOTAL_STEPS%] 📚 DEPENDENCY INSTALLATION
-echo ================================================
-
-echo 🔄 Upgrading pip to latest version...
+echo Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
-echo 📦 Installing project dependencies...
-echo    This may take 2-3 minutes depending on your connection...
-
-pip install -r requirements.txt
+echo Installing required packages...
+pip install -r requirements.txt --quiet
 if errorlevel 1 (
-    echo ❌ Dependency installation failed
-    echo.
-    echo 🔧 Attempting with verbose output for troubleshooting:
-    pip install -r requirements.txt --verbose
-    pause
-    exit /b 1
+    echo %RED%❌ Failed to install dependencies%RESET%
+    echo Trying with verbose output...
+    pip install -r requirements.txt
+    set "SETUP_ERROR=1"
+    goto :error_summary
+) else (
+    echo %GREEN%✅ Dependencies installed successfully%RESET%
+    set "DEPS_OK=1"
 )
-
-echo ✅ All dependencies installed successfully
-
-echo 🧪 Verifying critical packages...
-python -c "
-import sys
-packages = ['flask', 'flask_socketio', 'websockets', 'dotenv']
-failed = []
-for pkg in packages:
-    try:
-        __import__(pkg)
-        print(f'✅ {pkg}')
-    except ImportError:
-        print(f'❌ {pkg}')
-        failed.append(pkg)
-if failed:
-    print(f'Failed packages: {failed}')
-    sys.exit(1)
-print('✅ All critical packages verified')
-"
-if errorlevel 1 (
-    echo ❌ Package verification failed
-    pause
-    exit /b 1
-)
-
-REM ========================================================================
-REM  ⚙️ STEP 5/7: SECURE CONFIGURATION GENERATION
-REM ========================================================================
 
 echo.
-echo [5/%TOTAL_STEPS%] ⚙️ SECURE CONFIGURATION GENERATION
-echo ================================================
+echo %BLUE%Step 4: Configuring environment...%RESET%
+echo ===================================
 
 if exist .env (
-    echo ⚠️  Configuration file already exists
-    set /p overwrite="Generate new secure configuration? [Y/N]: "
-    if /i "!overwrite!" NEQ "Y" (
-        echo ✅ Using existing configuration
-        goto :firewall_config
+    echo %YELLOW%⚠️  Configuration file already exists%RESET%
+    echo Would you like to recreate it? (y/n)
+    set /p recreate_env="Enter your choice: "
+    if /i "!recreate_env!"=="y" (
+        del .env
+        goto :create_env
+    ) else (
+        echo %GREEN%✅ Using existing configuration%RESET%
+        set "CONFIG_OK=1"
+        goto :skip_env
     )
 )
 
-echo 🔐 Generating secure configuration with random tokens...
-
-REM Generate cryptographically secure tokens
-set "TOKEN1=admin-win-!RANDOM!!TIME:~-4!"
-set "TOKEN2=secure-!RANDOM!!DATE:~-4!"
-set "TOKEN3=aruba-iot-!RANDOM!"
-set "SECRET=win-secret-!RANDOM!-!TIME:~6,2!!DATE:~-2!"
-
-echo 📝 Writing configuration file...
+:create_env
+echo Creating configuration file...
 (
-    echo # ========================================================================
-    echo # Aruba IoT Telemetry Server - Windows Configuration
-    echo # Generated: !DATE! !TIME!
-    echo # ========================================================================
-    echo.
-    echo # Flask Web Server Configuration
+    echo # Flask Configuration
     echo FLASK_HOST=0.0.0.0
     echo FLASK_PORT=9090
     echo FLASK_DEBUG=False
-    echo SECRET_KEY=!SECRET!
+    echo SECRET_KEY=windows-secret-key-%RANDOM%-%TIME:~6,2%
     echo.
-    echo # Aruba WebSocket Server Configuration  
+    echo # Aruba WebSocket Server Configuration
     echo ARUBA_WS_HOST=0.0.0.0
     echo ARUBA_WS_PORT=9191
     echo.
-    echo # Authentication Tokens - CHANGE BEFORE PRODUCTION!
-    echo # Each token can be used by Aruba controllers to connect
-    echo ARUBA_AUTH_TOKENS=!TOKEN1!,!TOKEN2!,!TOKEN3!,admin,aruba-iot
+    echo # Authentication Configuration - CHANGE THESE IN PRODUCTION!
+    echo ARUBA_AUTH_TOKENS=admin-windows-%RANDOM%,secure-token-%RANDOM%,aruba-iot,production-key-%RANDOM%
     echo.
     echo # Logging Configuration
     echo LOG_LEVEL=INFO
-    echo.
-    echo # ========================================================================
-    echo # Your Secure Authentication Tokens:
-    echo #   Primary:   !TOKEN1!
-    echo #   Secondary: !TOKEN2!
-    echo #   Tertiary:  !TOKEN3!
-    echo #   Default:   admin, aruba-iot
-    echo # ========================================================================
 ) > .env
 
-echo ✅ Secure configuration generated with random tokens
-echo 🔑 Authentication tokens created and saved to .env file
+if exist .env (
+    echo %GREEN%✅ Configuration file created successfully%RESET%
+    set "CONFIG_OK=1"
+) else (
+    echo %RED%❌ Failed to create configuration file%RESET%
+    set "SETUP_ERROR=1"
+)
 
-:firewall_config
-
-REM ========================================================================
-REM  🔥 STEP 6/7: WINDOWS FIREWALL CONFIGURATION
-REM ========================================================================
+:skip_env
 
 echo.
-echo [6/%TOTAL_STEPS%] 🔥 WINDOWS FIREWALL CONFIGURATION
-echo ================================================
+echo %BLUE%Step 5: Configuring Windows Firewall...%RESET%
+echo ============================================
 
-echo 🛡️  Configuring Windows Firewall for ports 9090 and 9191...
-
+REM Check if running as administrator
 net session >nul 2>&1
 if errorlevel 1 (
-    echo ⚠️  Administrator privileges required for firewall configuration
+    echo %YELLOW%⚠️  Administrator privileges required for firewall configuration%RESET%
     echo.
-    echo 🚀 RECOMMENDED: Restart with Administrator privileges
-    echo 📋 ALTERNATIVE: Manual configuration
-    echo 🔄 CONTINUE: Skip firewall setup (local access only)
-    echo.
-    set /p fw_choice="Choose: [A]dmin restart, [M]anual config, [S]kip firewall: "
+    echo %YELLOW%Attempting to restart with administrator privileges...%RESET%
+    echo If UAC prompt appears, please click "Yes"
     
-    if /i "!fw_choice!"=="A" (
-        echo 🔄 Restarting with Administrator privileges...
-        timeout /t 2 >nul
-        powershell -Command "Start-Process cmd -Verb RunAs -ArgumentList '/c cd /d \"%CD%\" && setup_windows.bat'"
-        echo 👋 This window will close. Look for the new Administrator window.
-        timeout /t 3 >nul
-        exit /b 0
-    )
-    if /i "!fw_choice!"=="M" (
-        echo.
-        echo 📋 MANUAL FIREWALL CONFIGURATION:
-        echo ================================
-        echo 1. Press Win+R, type 'wf.msc', press Enter
-        echo 2. Click 'Inbound Rules' → 'New Rule'
-        echo 3. Select 'Port' → 'TCP' → enter '9090,9191'
-        echo 4. Select 'Allow the connection'
-        echo 5. Check all profiles, name it 'Aruba IoT Telemetry'
-        echo.
-        pause
-    )
-    if /i "!fw_choice!"=="S" (
-        echo ⚠️  Firewall configuration skipped
-        echo 💡 Server will work locally but may not accept external connections
-        echo 🔧 Run configure_firewall.bat later as Administrator if needed
+    REM Create a temporary script to continue setup with admin privileges
+    (
+        echo @echo off
+        echo cd /d "%CD%"
+        echo call .venv\Scripts\activate.bat
+        echo echo.
+        echo echo %BLUE%Continuing firewall configuration...%RESET%
+        echo netsh advfirewall firewall delete rule name="Aruba IoT Web Dashboard" ^>nul 2^>^&1
+        echo netsh advfirewall firewall delete rule name="Aruba IoT WebSocket Server" ^>nul 2^>^&1
+        echo netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 profile=any
+        echo if errorlevel 1 ^(
+        echo     echo %RED%❌ Failed to add firewall rule for port 9090%RESET%
+        echo ^) else ^(
+        echo     echo %GREEN%✅ Added firewall rule for port 9090%RESET%
+        echo ^)
+        echo netsh advfirewall firewall add rule name="Aruba IoT WebSocket Server" dir=in action=allow protocol=TCP localport=9191 profile=any
+        echo if errorlevel 1 ^(
+        echo     echo %RED%❌ Failed to add firewall rule for port 9191%RESET%
+        echo ^) else ^(
+        echo     echo %GREEN%✅ Added firewall rule for port 9191%RESET%
+        echo ^)
+        echo echo.
+        echo echo %GREEN%Firewall configuration completed%RESET%
+        echo echo Press any key to continue...
+        echo pause ^>nul
+        echo del "%%~f0"
+    ) > temp_firewall_setup.bat
+    
+    powershell -Command "Start-Process 'temp_firewall_setup.bat' -Verb RunAs -Wait" 2>nul
+    if errorlevel 1 (
+        echo %YELLOW%⚠️  Could not configure firewall automatically%RESET%
+        echo You can configure it manually later using: configure_firewall.bat
+        set "FIREWALL_OK=0"
+    ) else (
+        echo %GREEN%✅ Firewall configured successfully%RESET%
+        set "FIREWALL_OK=1"
     )
 ) else (
-    echo ✅ Administrator privileges detected
-    echo 🔧 Configuring firewall rules...
+    echo %GREEN%✅ Administrator privileges detected%RESET%
+    echo Adding firewall rules...
     
-    REM Remove any existing rules
     netsh advfirewall firewall delete rule name="Aruba IoT Web Dashboard" >nul 2>&1
     netsh advfirewall firewall delete rule name="Aruba IoT WebSocket Server" >nul 2>&1
     
-    REM Add new rules
-    netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 profile=any >nul
+    netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 profile=any >nul 2>&1
     if errorlevel 1 (
-        echo ⚠️  Warning: Could not add firewall rule for port 9090
+        echo %RED%❌ Failed to add firewall rule for port 9090%RESET%
     ) else (
-        echo ✅ Firewall rule added: Port 9090 (Web Dashboard)
+        echo %GREEN%✅ Added firewall rule for port 9090%RESET%
     )
     
-    netsh advfirewall firewall add rule name="Aruba IoT WebSocket Server" dir=in action=allow protocol=TCP localport=9191 profile=any >nul
+    netsh advfirewall firewall add rule name="Aruba IoT WebSocket Server" dir=in action=allow protocol=TCP localport=9191 profile=any >nul 2>&1
     if errorlevel 1 (
-        echo ⚠️  Warning: Could not add firewall rule for port 9191
+        echo %RED%❌ Failed to add firewall rule for port 9191%RESET%
     ) else (
-        echo ✅ Firewall rule added: Port 9191 (WebSocket Server)
+        echo %GREEN%✅ Added firewall rule for port 9191%RESET%
+        set "FIREWALL_OK=1"
     )
-    
-    echo ✅ Windows Firewall configured successfully
 )
 
-REM ========================================================================
-REM  🧪 STEP 7/7: FINAL TESTING & VALIDATION
-REM ========================================================================
-
 echo.
-echo [7/%TOTAL_STEPS%] 🧪 FINAL TESTING ^& VALIDATION
-echo ================================================
+echo %BLUE%Step 6: Testing installation...%RESET%
+echo ===============================
 
-echo 🔍 Running comprehensive system test...
+echo Testing Python package imports...
+python -c "import flask, flask_socketio, websockets, dotenv; print('All packages imported successfully')" 2>nul
+if errorlevel 1 (
+    echo %RED%❌ Package import test failed%RESET%
+    set "SETUP_ERROR=1"
+) else (
+    echo %GREEN%✅ Package import test passed%RESET%
+)
 
-REM Test app.py syntax
+echo Testing app.py syntax...
 python -m py_compile app.py >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Syntax error detected in app.py
-    set "SETUP_SUCCESS=0"
+    echo %RED%❌ app.py syntax check failed%RESET%
+    set "SETUP_ERROR=1"
 ) else (
-    echo ✅ Application syntax validated
+    echo %GREEN%✅ app.py syntax check passed%RESET%
 )
 
-REM Test configuration
-if exist .env (
-    echo ✅ Configuration file present
-) else (
-    echo ❌ Configuration file missing
-    set "SETUP_SUCCESS=0"
-)
-
-REM Final import test
-python -c "
-try:
-    import app
-    print('✅ Application import successful')
-except Exception as e:
-    print(f'❌ Application import failed: {e}')
-    exit(1)
-" >nul 2>&1
-if errorlevel 1 (
-    echo ⚠️  Warning: Application import test failed
-    echo 💡 This might be normal and the app may still work
-) else (
-    echo ✅ Application import test passed
-)
-
-if !SETUP_SUCCESS! EQU 0 (
-    echo.
-    echo ❌ Setup completed with warnings
-    echo 💡 The application might still work, but check the issues above
-) else (
-    echo ✅ All tests passed - Installation successful!
-)
-
-REM ========================================================================
-REM  🎉 SETUP COMPLETE - SHOW RESULTS
-REM ========================================================================
+if !SETUP_ERROR!==1 goto :error_summary
 
 echo.
-echo ========================================================================
-echo                        🎉 SETUP COMPLETE! 🎉
-echo ========================================================================
+echo %GREEN%🎉 Installation completed successfully!%RESET%
+echo =====================================
+
+REM Display network information
 echo.
-
-echo 📊 INSTALLATION SUMMARY:
-echo ========================
-echo ✅ Python environment configured
-echo ✅ Virtual environment created and activated
-echo ✅ All dependencies installed
-echo ✅ Secure configuration generated
-echo ✅ Application validated
-if !SETUP_SUCCESS! EQU 1 echo ✅ Firewall configured for external access
-
+echo %BLUE%Network Information:%RESET%
+echo ===================
+echo Your server will be accessible at:
+echo 📍 Web Dashboard: http://localhost:9090
+echo 📍 WebSocket: ws://localhost:9191/aruba?token=YOUR_TOKEN
 echo.
-echo 🌐 NETWORK INFORMATION:
-echo =======================
-echo 📍 Your server will be accessible at these addresses:
-
+echo Your IP addresses for external access:
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr "IPv4" ^| findstr /v "127.0.0.1"') do (
     set "ip=%%a"
     set "ip=!ip: =!"
-    echo    💻 Computer IP: !ip!
-    echo       🌐 Dashboard: http://!ip!:9090
-    echo       🔌 WebSocket: ws://!ip!:9191/aruba?token=admin
-    goto :show_security
+    echo 📍 Web Dashboard: http://!ip!:9090
+    echo 📍 WebSocket: ws://!ip!:9191/aruba?token=YOUR_TOKEN
 )
 
-:show_security
 echo.
-echo 🔐 SECURITY INFORMATION:
-echo ========================
-if exist .env (
-    for /f "tokens=2 delims==" %%t in ('findstr "ARUBA_AUTH_TOKENS" .env 2^>nul') do (
-        echo 🔑 Authentication tokens: %%t
-    )
-)
-echo 💡 Tokens are stored in the .env file
-echo ⚠️  Change default tokens before production use!
+echo %BLUE%Authentication Tokens:%RESET%
+echo ====================
+echo Your authentication tokens are in the .env file:
+type .env | findstr "ARUBA_AUTH_TOKENS"
 
 echo.
-echo 🚀 READY TO START:
-echo ==================
-echo Option 1 - Quick Start (Recommended):
-echo   📄 Double-click: start_windows.bat
-echo.
-echo Option 2 - Manual Start:
-echo   📝 Commands:
-echo      .venv\Scripts\activate
-echo      python app.py
-echo.
-echo Option 3 - Start Now:
-echo   🏃 Press ENTER to start the server immediately
-
-echo.
-echo 📚 DOCUMENTATION:
-echo =================
-echo 📖 README.md - Quick start guide
-echo 🛠️  DEPLOYMENT_GUIDE.md - Advanced deployment
-echo 🔧 ARUBA_CONNECTION_GUIDE.md - Connection troubleshooting
-echo 🆘 troubleshoot_windows.bat - Diagnostic tool
-
-echo.
-echo 🆘 SUPPORT:
+echo %BLUE%Quick Start:%RESET%
 echo ===========
-echo 🌐 GitHub: https://github.com/kzmp/iot-aruba-telemetry
-echo 📧 Issues: Report problems on GitHub Issues page
+echo To start the server now:
+echo 1. Keep this window open
+echo 2. Press any key to start the server
+echo 3. Or close this window and run: start_windows.bat
+echo.
+echo %YELLOW%Press any key to start the server, or Ctrl+C to exit...%RESET%
+pause >nul
 
 echo.
-echo ========================================================================
-
-set /p start_now="🚀 Start the Aruba IoT Telemetry Server now? [Y/N]: "
-if /i "!start_now!"=="Y" (
-    echo.
-    echo 🚀 STARTING ARUBA IOT TELEMETRY SERVER...
-    echo ========================================
-    echo 💡 Access dashboard at: http://localhost:9090
-    echo 🔌 WebSocket endpoint: ws://localhost:9191/aruba?token=admin
-    echo ⚠️  Press Ctrl+C to stop the server
-    echo.
-    
-    python app.py
-    
-    echo.
-    echo 🛑 Server stopped
-    echo 🔄 To restart: run start_windows.bat or python app.py
-) else (
-    echo.
-    echo ✅ Setup complete! 
-    echo 🚀 Run start_windows.bat when you're ready to start the server.
-)
-
+echo %GREEN%🚀 Starting Aruba IoT Telemetry Server...%RESET%
+echo =============================================
 echo.
+echo %YELLOW%⚠️  Press Ctrl+C to stop the server%RESET%
+echo.
+
+REM Start the application
+python app.py
+
+goto :end
+
+:error_summary
+echo.
+echo %RED%❌ Setup encountered errors!%RESET%
+echo ============================
+echo.
+echo Setup Status:
+if !PYTHON_OK!==1 (echo %GREEN%✅ Python%RESET%) else (echo %RED%❌ Python%RESET%)
+if !VENV_OK!==1 (echo %GREEN%✅ Virtual Environment%RESET%) else (echo %RED%❌ Virtual Environment%RESET%)
+if !DEPS_OK!==1 (echo %GREEN%✅ Dependencies%RESET%) else (echo %RED%❌ Dependencies%RESET%)
+if !CONFIG_OK!==1 (echo %GREEN%✅ Configuration%RESET%) else (echo %RED%❌ Configuration%RESET%)
+if !FIREWALL_OK!==1 (echo %GREEN%✅ Firewall%RESET%) else (echo %YELLOW%⚠️  Firewall%RESET%)
+echo.
+echo %YELLOW%Troubleshooting:%RESET%
+echo ===============
+echo 1. Run: troubleshoot_windows.bat
+echo 2. Check: DEPLOYMENT_GUIDE.md
+echo 3. Visit: https://github.com/kzmp/iot-aruba-telemetry
+
+:end
+echo.
+echo %BLUE%Setup script completed%RESET%
 pause
+ENDLOCAL

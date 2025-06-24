@@ -341,63 +341,38 @@ python app.py
 - **Python 3.8+**: Download from [python.org](https://www.python.org/downloads/windows/)
 - **Git for Windows**: Usually included with GitHub Desktop
 
-### 🎯 Option 1: One-Click Installation (Recommended)
+### ⚡ One-Click Installation (Recommended)
 
-#### Step 1: Clone Repository with GitHub Desktop
-1. **Open GitHub Desktop**
-2. **Clone Repository**:
+#### Option 1: Complete Automated Setup
+1. **Clone with GitHub Desktop**:
+   - Open GitHub Desktop
    - Click "Clone a repository from the Internet"
-   - Enter repository URL: `https://github.com/kzmp/iot-aruba-telemetry`
-   - Choose local path (e.g., `C:\Users\YourName\Documents\iot-aruba-telemetry`)
-   - Click "Clone"
+   - Enter URL: `https://github.com/kzmp/iot-aruba-telemetry`
+   - Choose location and click "Clone"
 
-#### Step 2: Run One-Click Installer
-1. **Open the project folder** (from GitHub Desktop: Repository → Show in Explorer)
-2. **Double-click**: `INSTALL_WINDOWS.bat`
-3. **Follow the prompts** - the installer will:
-   - Check Python installation (download if needed)
-   - Create virtual environment
-   - Install all dependencies
-   - Generate secure configuration
-   - Configure Windows Firewall
-   - Test the installation
-   - Optionally start the server
+2. **Run One-Click Setup**:
+   - Open the cloned folder
+   - **Double-click: `setup_windows_oneclick.bat`**
+   - Follow the prompts (the script handles everything automatically)
 
-#### That's it! 🎉
-The one-click installer handles everything automatically.
+#### Option 2: Ultra-Simple Installation
+1. **Clone with GitHub Desktop** (same as above)
+2. **Double-click: `INSTALL_WINDOWS.bat`**
+   - This is the simplest option - just double-click and it runs!
 
-### 🛠️ Option 2: Advanced Setup Scripts
+### 🔧 What the One-Click Setup Does:
+✅ **Checks Python installation** (helps find Python if not in PATH)
+✅ **Creates virtual environment** automatically
+✅ **Installs all dependencies** with progress indicators
+✅ **Generates secure configuration** with random tokens
+✅ **Configures Windows Firewall** (requests admin privileges)
+✅ **Tests the installation** to ensure everything works
+✅ **Displays connection URLs** for your network
+✅ **Starts the server** immediately after setup
 
-For more control over the installation process:
-
-#### Quick Setup
-```cmd
-setup_windows.bat
-```
-
-#### Comprehensive Setup with Visual Progress
-```cmd
-setup_windows_oneclick.bat
-```
-
-#### Individual Tools
-```cmd
-configure_firewall.bat     # Configure Windows Firewall only
-test_installation.bat      # Test existing installation
-troubleshoot_windows.bat   # Diagnose problems
-```
-
-### 🚀 Option 3: Manual Installation (Advanced Users)
+### 📋 Manual Installation (if needed)
 
 #### 1. Clone Repository with GitHub Desktop
-1. **Open GitHub Desktop**
-2. **Clone Repository**:
-   - Click "Clone a repository from the Internet"
-   - Enter repository URL: `https://github.com/kzmp/iot-aruba-telemetry`
-   - Choose local path (e.g., `C:\Users\YourName\Documents\iot-aruba-telemetry`)
-   - Click "Clone"
-
-#### 2. Setup Python Environment
 1. **Open GitHub Desktop**
 2. **Clone Repository**:
    - Click "Clone a repository from the Internet"

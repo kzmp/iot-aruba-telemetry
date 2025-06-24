@@ -284,20 +284,22 @@ This project is open source and available under the [MIT License](LICENSE).
 
 For production deployment on a remote server, we provide multiple deployment options:
 
-### Option 1: Quick Setup Script (Recommended)
+### Option 1: One-Click Setup (Windows)
+```batch
+REM For Windows users with GitHub Desktop:
+REM 1. Clone repository with GitHub Desktop
+REM 2. Double-click one of these files:
+setup_windows_oneclick.bat   REM Complete automated setup
+INSTALL_WINDOWS.bat          REM Ultra-simple installation
+```
+
+### Option 2: Quick Setup Script (Linux/macOS)
 ```bash
 # On Linux/macOS
 git clone https://github.com/kzmp/iot-aruba-telemetry.git
 cd iot-aruba-telemetry
 chmod +x setup.sh
 ./setup.sh
-```
-
-```batch
-REM On Windows (using GitHub Desktop)
-REM 1. Clone repository with GitHub Desktop
-REM 2. Open Command Prompt in project folder
-setup_windows.bat
 ```
 
 ### Option 2: Manual Setup
