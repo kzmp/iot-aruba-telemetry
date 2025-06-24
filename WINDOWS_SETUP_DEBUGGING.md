@@ -62,6 +62,64 @@ The `setup_windows_enhanced.bat` script provides comprehensive error handling an
 - Rule verification
 - Manual configuration guidance
 
+### 🔥 Enhanced Firewall Configuration
+
+The firewall configuration has been significantly improved to prevent script hanging:
+
+#### Process Isolation Approach
+- **Isolated Process**: Firewall configuration runs in a completely separate process
+- **Temporary Script Generation**: Creates a dedicated batch file for firewall operations
+- **Timeout Protection**: Advanced timeout mechanism prevents script hanging
+- **Success Detection**: Explicit success/failure detection in configuration output
+
+#### Firewall Configuration Tests
+- **Windows Firewall Service Check**: Verifies service is running before attempting configuration
+- **Early Admin Rights Check**: Prevents unnecessary processing if rights are insufficient
+- **Explicit Signal Flags**: Reliable completion signaling between processes
+- **Independent Script Design**: No dependency on function calls from parent script
+
+#### Troubleshooting Firewall Configuration
+```batch
+# Test firewall configuration in isolation
+test_enhanced_firewall.bat
+
+# View firewall rules for Aruba IoT
+netsh advfirewall firewall show rule name="Aruba IoT*"
+
+# Manually configure firewall rules (as administrator)
+netsh advfirewall firewall add rule name="Aruba IoT Web" dir=in action=allow protocol=TCP localport=9090
+netsh advfirewall firewall add rule name="Aruba IoT WS" dir=in action=allow protocol=TCP localport=9191
+
+# Check Windows Firewall service status
+sc query MpsSvc
+```
+
+#### Common Firewall Issues and Solutions
+
+1. **Service Not Running**
+   ```
+   Issue: Windows Firewall service is not running
+   Solution: Enable service in Services (services.msc) → Windows Defender Firewall
+   ```
+
+2. **Administrator Rights Missing**
+   ```
+   Issue: No administrator privileges for firewall configuration
+   Solution: Right-click script and "Run as administrator"
+   ```
+
+3. **Configuration Timeout**
+   ```
+   Issue: Firewall configuration process times out
+   Solution: Run test_enhanced_firewall.bat to diagnose specific issues
+   ```
+
+4. **Conflicting Rules**
+   ```
+   Issue: Existing rules conflict with new configuration
+   Solution: Manually remove existing rules and recreate them
+   ```
+
 ### 🐛 Debugging Features
 
 #### Color-Coded Output

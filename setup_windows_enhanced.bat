@@ -186,13 +186,146 @@ echo =================================
 set /a STEP_COUNT=6
 call :LOG_INFO "Step 6: Starting firewall configuration"
 
+REM Clean up any existing flag files to avoid false positives
+if exist firewall_complete.flag del firewall_complete.flag >nul 2>&1
+if exist firewall_output.txt del firewall_output.txt >nul 2>&1
+
+REM Verify if Windows Firewall service is running (reliably)
+call :LOG_INFO "Checking Windows Firewall service status"
+sc query MpsSvc >nul 2>&1
+if !ERRORLEVEL! neq 0 (
+    call :LOG_WARNING "Unable to query firewall service - command failed"
+    echo %YELLOW%⚠️  Cannot access Windows Firewall service information%RESET%
+    echo %YELLOW%⚠️  Skipping firewall configuration (non-critical)%RESET%
+    set "FIREWALL_OK=0"
+    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+    goto :skip_to_step7
+)
+
+sc query MpsSvc | findstr /i "RUNNING" >nul 2>&1
+set "FIREWALL_SERVICE_RUNNING=!ERRORLEVEL!"
+if !FIREWALL_SERVICE_RUNNING! neq 0 (
+    call :LOG_WARNING "Windows Firewall service is not running"
+    echo %YELLOW%⚠️  Windows Firewall service is not running%RESET%
+    echo %YELLOW%⚠️  Skipping automatic firewall configuration (non-critical)%RESET%
+    set "FIREWALL_OK=0"
+    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+    goto :skip_to_step7
+)
+
+REM Check admin rights early to avoid unnecessary processing
+call :LOG_INFO "Checking administrator privileges"
+net session >nul 2>&1
+set "ADMIN_CHECK_RESULT=!ERRORLEVEL!"
+if !ADMIN_CHECK_RESULT! neq 0 (
+    call :LOG_WARNING "No administrator privileges detected for firewall configuration"
+    echo %YELLOW%⚠️  Administrator privileges required for firewall configuration%RESET%
+    echo %YELLOW%⚠️  Skipping automatic firewall configuration (non-critical)%RESET%
+    set "FIREWALL_OK=0"
+    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+    goto :skip_to_step7
+)
+
+REM At this point, we know:
+REM 1. Firewall service is running
+REM 2. We have admin rights
+REM Now it's safe to proceed with firewall configuration
+
 REM Firewall is non-critical, so we handle errors differently
 call :TRY_CATCH_BEGIN "Configuring Windows Firewall (non-critical)"
 
 REM Save current errorlevel to prevent cascading failures
 set "SAVED_ERRORLEVEL=!ERRORLEVEL!"
 
-call :CONFIGURE_FIREWALL_ENHANCED
+REM Run firewall configuration with timeout to prevent hanging
+echo %CYAN%Configuring firewall rules...%RESET%
+call :LOG_INFO "Starting firewall rule configuration with timeout protection"
+
+REM Create a separate batch file for the firewall configuration
+REM This prevents issues with function calls in background processes
+(
+    echo @echo off
+    echo setlocal enabledelayedexpansion
+    echo echo Configuring firewall rules for Aruba IoT Telemetry Server...
+    echo.
+    echo REM Web Dashboard rule
+    echo echo Creating Web Dashboard rule ^(port 9090^)...
+    echo netsh advfirewall firewall delete rule name="Aruba IoT Web Dashboard" ^>nul 2^>^&1
+    echo netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 description="Aruba IoT Telemetry Web Dashboard" ^>nul 2^>^&1
+    echo set "WEB_RESULT=!ERRORLEVEL!"
+    echo echo Web Dashboard rule result: !WEB_RESULT! ^(0=success^)
+    echo.
+    echo REM WebSocket rule
+    echo echo Creating WebSocket rule ^(port 9191^)...
+    echo netsh advfirewall firewall delete rule name="Aruba IoT WebSocket" ^>nul 2^>^&1
+    echo netsh advfirewall firewall add rule name="Aruba IoT WebSocket" dir=in action=allow protocol=TCP localport=9191 description="Aruba IoT Telemetry WebSocket Server" ^>nul 2^>^&1
+    echo set "WS_RESULT=!ERRORLEVEL!"
+    echo echo WebSocket rule result: !WS_RESULT! ^(0=success^)
+    echo.
+    echo REM Verification
+    echo echo Verifying rules...
+    echo netsh advfirewall firewall show rule name="Aruba IoT Web Dashboard" ^>nul 2^>^&1
+    echo set "VERIFY_WEB=!ERRORLEVEL!"
+    echo.
+    echo netsh advfirewall firewall show rule name="Aruba IoT WebSocket" ^>nul 2^>^&1
+    echo set "VERIFY_WS=!ERRORLEVEL!"
+    echo.
+    echo if !WEB_RESULT!==0 if !WS_RESULT!==0 if !VERIFY_WEB!==0 if !VERIFY_WS!==0 ^(
+    echo     echo FIREWALL_CONFIG_SUCCESS
+    echo ^) else ^(
+    echo     echo FIREWALL_CONFIG_FAILED
+    echo ^)
+    echo.
+    echo echo 1^> "%CD%\firewall_complete.flag"
+    echo exit /b 0
+) > "%TEMP%\aruba_firewall_config.bat"
+
+REM Start firewall configuration in a separate process
+start /b cmd /c "%TEMP%\aruba_firewall_config.bat" > firewall_output.txt 2>&1
+
+REM Wait for the configuration to complete with a timeout
+set "TIMEOUT_SECONDS=20"
+echo Waiting up to !TIMEOUT_SECONDS! seconds for firewall configuration...
+set "ELAPSED=0"
+set "FIREWALL_COMPLETE=0"
+
+:wait_for_firewall
+if !ELAPSED! geq !TIMEOUT_SECONDS! (
+    call :LOG_WARNING "Firewall configuration timed out after !TIMEOUT_SECONDS! seconds"
+    echo %YELLOW%⚠️  Firewall configuration taking too long - continuing setup%RESET%
+    echo %YELLOW%⚠️  You may need to configure firewall manually later%RESET%
+    set "FIREWALL_OK=0"
+    goto :firewall_timeout_end
+)
+
+if exist firewall_complete.flag (
+    set "FIREWALL_COMPLETE=1"
+    del firewall_complete.flag >nul 2>&1
+    goto :firewall_timeout_end
+)
+
+timeout /t 1 /nobreak >nul
+set /a ELAPSED+=1
+goto :wait_for_firewall
+
+:firewall_timeout_end
+REM Clean up temporary batch file
+if exist "%TEMP%\aruba_firewall_config.bat" del "%TEMP%\aruba_firewall_config.bat" >nul 2>&1
+
+REM Check firewall output for success marker
+if exist firewall_output.txt (
+    echo %CYAN%Firewall Configuration Results:%RESET%
+    type firewall_output.txt
+    
+    findstr /C:"FIREWALL_CONFIG_SUCCESS" firewall_output.txt >nul 2>&1
+    if !ERRORLEVEL!==0 (
+        set "FIREWALL_OK=1"
+    ) else (
+        set "FIREWALL_OK=0"
+    )
+    
+    del firewall_output.txt >nul 2>&1
+)
 
 REM Restore errorlevel and log completion regardless of result
 set "ERRORLEVEL=!SAVED_ERRORLEVEL!"
@@ -201,6 +334,7 @@ call :LOG_INFO "Firewall configuration completed with status: !FIREWALL_OK!"
 if !FIREWALL_OK!==0 (
     echo %YELLOW%⚠️  Firewall configuration had issues (non-critical - continuing setup)%RESET%
     call :LOG_WARNING "Firewall configuration failed but continuing with setup"
+    call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
 ) else (
     echo %GREEN%✅ Firewall configured successfully%RESET%
 )
@@ -208,6 +342,8 @@ if !FIREWALL_OK!==0 (
 REM Always succeed on firewall step since it's non-critical
 set "ERRORLEVEL=0"
 call :TRY_CATCH_END
+
+:skip_to_step7
 
 REM ============================================================================
 REM STEP 7: FINAL VALIDATION AND TESTING
@@ -726,13 +862,15 @@ echo %GREEN%✅ Environment configured with generated tokens%RESET%
 goto :eof
 
 :CONFIGURE_FIREWALL_ENHANCED
-call :LOG_INFO "Starting enhanced firewall configuration"
+REM This function is no longer used directly in the main script
+REM It's kept for backward compatibility or manual invocation
+call :LOG_INFO "Starting legacy firewall configuration function"
 echo %CYAN%🔥 Configuring Windows Firewall...%RESET%
 
 REM Initialize firewall status
 set "FIREWALL_OK=0"
 
-REM Check if we have admin privileges
+REM Check if we have admin privileges (non-interactive)
 call :LOG_INFO "Checking administrator privileges"
 net session >nul 2>&1
 set "ADMIN_CHECK_RESULT=!ERRORLEVEL!"
@@ -740,44 +878,10 @@ set "ADMIN_CHECK_RESULT=!ERRORLEVEL!"
 if !ADMIN_CHECK_RESULT! neq 0 (
     call :LOG_WARNING "No administrator privileges detected for firewall configuration"
     echo %YELLOW%⚠️  Administrator privileges required for automatic firewall configuration%RESET%
+    echo %YELLOW%⚠️  Skipping automatic firewall configuration%RESET%
     echo.
-    echo %CYAN%Firewall Configuration Options:%RESET%
-    echo 1. Skip firewall configuration (continue setup - you can configure manually later)
-    echo 2. Restart script as administrator (recommended)
-    echo 3. Get manual firewall instructions
-    echo.
-    set /p firewall_choice="Enter your choice (1-3) [default: 1]: "
-    
-    REM Default to option 1 if no input
-    if "!firewall_choice!"=="" set "firewall_choice=1"
-    
-    if "!firewall_choice!"=="2" (
-        echo %CYAN%🔄 Attempting to restart with administrator privileges...%RESET%
-        echo Please approve the UAC prompt if it appears...
-        timeout /t 3 /nobreak >nul
-        call :LOG_INFO "Attempting administrator restart"
-        
-        REM Try to restart as admin
-        powershell -Command "try { Start-Process cmd -ArgumentList '/c cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs -ErrorAction Stop; exit 0 } catch { exit 1 }" 2>nul
-        set "RESTART_RESULT=!ERRORLEVEL!"
-        
-        if !RESTART_RESULT!==0 (
-            echo %GREEN%✅ Restarting as administrator...%RESET%
-            exit /b 0
-        ) else (
-            echo %RED%❌ Could not restart as administrator%RESET%
-            echo Continuing with setup - firewall configuration skipped
-            call :LOG_WARNING "Administrator restart failed, continuing without firewall setup"
-            goto :firewall_skip
-        )
-    ) else if "!firewall_choice!"=="3" (
-        call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
-        goto :firewall_skip
-    ) else (
-        echo %YELLOW%⚠️  Skipping automatic firewall configuration%RESET%
-        call :LOG_INFO "User chose to skip firewall configuration"
-        goto :firewall_skip
-    )
+    echo 1> firewall_complete.flag
+    goto :firewall_skip
 )
 
 REM We have admin privileges - proceed with firewall configuration
@@ -856,7 +960,6 @@ if !FIREWALL_WEB_RESULT!==0 if !FIREWALL_WS_RESULT!==0 if !VERIFY_WEB_RESULT!==0
     
     if !FIREWALL_WEB_RESULT! neq 0 if !FIREWALL_WS_RESULT! neq 0 (
         echo %RED%❌ Both firewall rules failed%RESET%
-        call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
     )
 )
 
@@ -872,15 +975,11 @@ echo After setup completes, you'll need to manually allow these ports:
 echo   • Port 9090 (Web Dashboard)
 echo   • Port 9191 (WebSocket Server)
 echo.
-echo %YELLOW%Quick Manual Steps:%RESET%
-echo 1. Run 'configure_firewall.bat' as administrator, OR
-echo 2. Open Windows Defender Firewall settings
-echo 3. Allow the ports 9090 and 9191 for the application
-echo.
 set "FIREWALL_OK=0"
 
 :firewall_complete
 call :LOG_INFO "Firewall configuration section completed with status: !FIREWALL_OK!"
+echo 1> firewall_complete.flag
 goto :eof
 
 :SHOW_MANUAL_FIREWALL_INSTRUCTIONS

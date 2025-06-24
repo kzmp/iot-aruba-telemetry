@@ -135,14 +135,24 @@ We have successfully implemented comprehensive try-catch style error handling fo
 2. **Extend functionality**: Add new error categories and recovery mechanisms
 3. **Contribute improvements**: Submit enhancements via GitHub
 
-## 📝 Next Steps
+## 🚀 Latest Enhancements (Firewall Configuration)
 
-The enhanced error handling system is now complete and production-ready. Users experiencing setup issues now have:
+### Firewall Configuration Improvements
+- **Enhanced Process Isolation**: Firewall configuration now runs in a completely isolated process 
+- **Temporary Script Generation**: Creates a dedicated temporary batch file for firewall rules, preventing function call issues
+- **Reliable Service Detection**: Improved Windows Firewall service detection before attempting configuration
+- **Explicit Admin Rights Check**: Early administrator rights verification to avoid unnecessary processing
+- **Timeout Protection**: Improved timeout mechanism with more reliable flag-based communication
+- **Success Marker Detection**: Explicit success/failure detection in firewall configuration output
+- **Zero Dependencies on Functions**: No reliance on function calls from background processes
+- **Comprehensive Cleanup**: Proper cleanup of temporary files and flags
 
-- **Comprehensive error detection** with detailed logging
-- **Automatic recovery mechanisms** for common problems
-- **Clear guidance** for manual intervention when needed
-- **Multiple setup options** for different user preferences
-- **Robust validation** to ensure successful installation
+### Reliability Improvements
+- **Non-blocking Design**: Script never hangs on firewall configuration step
+- **Early Failure Detection**: Fails fast when prerequisites aren't met (admin rights, service running)
+- **Better User Guidance**: More detailed manual configuration instructions if automatic setup fails
+- **Legacy Support**: Maintained backward compatibility with previous version
+
+These enhancements ensure that the firewall configuration step is now more reliable, provides better feedback, and never blocks the overall installation process.
 
 This implementation provides enterprise-grade reliability for the Aruba IoT Telemetry Server Windows installation process.
