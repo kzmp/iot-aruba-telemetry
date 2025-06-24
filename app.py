@@ -203,6 +203,13 @@ class ArubaIoTTelemetryHandler:
         # Handle different data types (bytes vs string)
         if isinstance(raw_data, bytes):
             logger.info(f"process_telemetry: Processing binary data of {len(raw_data)} bytes")
+            
+            # Add hexdump of first 128 bytes for debugging binary data
+            logger.info("process_telemetry: First 128 bytes hexdump:")
+            hex_lines = self._hex_dump(raw_data[:128])
+            for line in hex_lines:
+                logger.info(f"process_telemetry: {line}")
+                
             # Try different encodings if UTF-8 fails
             try:
                 # Try UTF-8 first (most common)
@@ -228,11 +235,51 @@ class ArubaIoTTelemetryHandler:
         else:
             logger.info(f"process_telemetry: Data: {decoded_data}")
             
+        # Check for common JSON syntax issues
+        if decoded_data:
+            # Remove potential BOM at the beginning of the string
+            if decoded_data.startswith('\ufeff'):
+                logger.warning("process_telemetry: Found BOM at start of string, removing it")
+                decoded_data = decoded_data[1:]
+                
+            # Check for unescaped control characters
+            control_chars = [ord(c) for c in decoded_data if ord(c) < 32 and c not in '\r\n\t']
+            if control_chars:
+                logger.warning(f"process_telemetry: Found {len(control_chars)} unescaped control characters in data")
+                for i, char_code in enumerate(control_chars[:10]):  # Show first 10 only
+                    char_pos = decoded_data.find(chr(char_code))
+                    logger.warning(f"process_telemetry: Control char 0x{char_code:02x} at position {char_pos}")
+                    
+            # Check for basic structure
+            stripped = decoded_data.strip()
+            if not (stripped.startswith('{') and stripped.endswith('}')) and \
+               not (stripped.startswith('[') and stripped.endswith(']')):
+                logger.warning("process_telemetry: Data doesn't appear to have valid JSON structure")
+                logger.warning(f"process_telemetry: Starts with: '{stripped[:10]}', Ends with: '{stripped[-10:]}'")
+                
         try:
             # Try to parse the JSON
             logger.info("process_telemetry: Attempting to parse JSON")
-            data = json.loads(decoded_data)
-            logger.info(f"process_telemetry: JSON parsing successful, keys: {list(data.keys())}")
+            try:
+                data = json.loads(decoded_data)
+                logger.info(f"process_telemetry: JSON parsing successful, keys: {list(data.keys())}")
+            except json.JSONDecodeError as initial_error:
+                # Try to sanitize and parse again
+                logger.warning(f"process_telemetry: Initial JSON parsing failed: {initial_error}")
+                sanitized_data = self._sanitize_json_string(decoded_data)
+                
+                if sanitized_data != decoded_data:
+                    logger.info("process_telemetry: Data was sanitized, attempting to parse again")
+                    try:
+                        data = json.loads(sanitized_data)
+                        logger.info(f"process_telemetry: JSON parsing successful after sanitization, keys: {list(data.keys())}")
+                    except json.JSONDecodeError:
+                        # If it still fails, raise the original error for better debugging
+                        logger.error("process_telemetry: JSON parsing failed even after sanitization")
+                        raise initial_error
+                else:
+                    # No changes were made during sanitization, re-raise the original error
+                    raise
             
             packet_type = data.get('type', '').lower()
             logger.info(f"process_telemetry: Detected packet type: '{packet_type}'")
@@ -287,10 +334,46 @@ class ArubaIoTTelemetryHandler:
             
         except json.JSONDecodeError as e:
             logger.error(f"process_telemetry: Failed to parse JSON: {e}")
-            if len(decoded_data) > 200:
-                logger.debug(f"process_telemetry: Raw data (first 200 chars): {decoded_data[:200]}...")
-            else:
-                logger.debug(f"process_telemetry: Raw data: {decoded_data}")
+            
+            # Log the full raw data for debugging
+            logger.error(f"process_telemetry: Raw data length: {len(decoded_data)} characters")
+            
+            # For better visibility, log chunks of data
+            chunk_size = 1000
+            for i in range(0, len(decoded_data), chunk_size):
+                chunk = decoded_data[i:i+chunk_size]
+                logger.error(f"process_telemetry: Raw data chunk {i//chunk_size + 1}: {chunk}")
+            
+            # For binary/non-printable character detection, add hexdump-style logging
+            logger.error("process_telemetry: Hexdump of problematic area:")
+            
+            # Find the problematic area based on the error message
+            error_msg = str(e)
+            error_pos = None
+            import re
+            match = re.search(r'char (\d+)', error_msg)
+            if match:
+                error_pos = int(match.group(1))
+                
+            if error_pos is not None:
+                # Get data around the error position
+                start_pos = max(0, error_pos - 50)
+                end_pos = min(len(decoded_data), error_pos + 50)
+                error_context = decoded_data[start_pos:end_pos]
+                
+                # Log hexdump of the area
+                hex_lines = []
+                for i in range(0, len(error_context), 16):
+                    chunk = error_context[i:i+16]
+                    hex_values = ' '.join([f'{ord(c):02x}' for c in chunk])
+                    ascii_values = ''.join([c if 32 <= ord(c) < 127 else '.' for c in chunk])
+                    position = start_pos + i
+                    marker = ' <<<< ERROR POSITION' if start_pos + i <= error_pos < start_pos + i + 16 else ''
+                    hex_lines.append(f"{position:08x}: {hex_values.ljust(48)} | {ascii_values} {marker}")
+                
+                for line in hex_lines:
+                    logger.error(f"process_telemetry: {line}")
+            
             return None
         except Exception as e:
             logger.error(f"process_telemetry: Error processing telemetry: {e}")
@@ -444,6 +527,82 @@ class ArubaIoTTelemetryHandler:
             proximity_data['rssi_readings'] = proximity_data['rssi_readings'][-50:]
         
         logger.info(f"_update_ble_analytics: Analytics update complete for device {device_id}")
+    
+    def _hex_dump(self, data, start_offset=0, highlight_pos=None):
+        """Generate a hex dump of binary or string data for debugging
+        
+        Args:
+            data: The data to dump (bytes or string)
+            start_offset: The starting offset for position display
+            highlight_pos: Optional position to highlight (relative to start_offset)
+            
+        Returns:
+            List of formatted hex dump lines
+        """
+        if isinstance(data, str):
+            data = data.encode('utf-8', errors='replace')
+        
+        hex_lines = []
+        for i in range(0, len(data), 16):
+            chunk = data[i:i+16]
+            hex_values = ' '.join([f'{b:02x}' for b in chunk])
+            ascii_values = ''.join([chr(b) if 32 <= b < 127 else '.' for b in chunk])
+            position = start_offset + i
+            
+            marker = ''
+            if highlight_pos is not None and start_offset + i <= highlight_pos < start_offset + i + 16:
+                marker = ' <<<< ERROR POSITION'
+                
+            hex_lines.append(f"{position:08x}: {hex_values.ljust(48)} | {ascii_values} {marker}")
+        
+        return hex_lines
+
+    def _sanitize_json_string(self, data):
+        """Attempt to sanitize a problematic JSON string
+        
+        Args:
+            data: The JSON string to sanitize
+            
+        Returns:
+            Sanitized JSON string
+        """
+        logger.info("process_telemetry: Attempting to sanitize problematic JSON")
+        
+        # Remove any leading/trailing whitespace
+        data = data.strip()
+        
+        # Fix common issues:
+        
+        # 1. Remove any BOM characters
+        if data.startswith('\ufeff'):
+            data = data[1:]
+            logger.info("process_telemetry: Removed BOM character")
+            
+        # 2. Fix unescaped newlines in strings
+        import re
+        # This regex finds strings with unescaped newlines and fixes them
+        # It's not perfect but helps with common cases
+        pattern = r'("(?:[^"\\]|\\.)*?)(\n)([^"]*?")'
+        if re.search(pattern, data):
+            data = re.sub(pattern, r'\1\\n\3', data)
+            logger.info("process_telemetry: Fixed unescaped newlines in strings")
+            
+        # 3. Fix missing quotes around keys
+        # This is a simplified approach - not a complete solution
+        unquoted_key_pattern = r'{\s*(\w+)\s*:'
+        if re.search(unquoted_key_pattern, data):
+            data = re.sub(unquoted_key_pattern, r'{"\1":', data)
+            logger.info("process_telemetry: Fixed unquoted keys")
+            
+        # 4. Try to fix trailing commas
+        data = data.replace(',}', '}').replace(',]', ']')
+        
+        # 5. Replace control characters with their escaped versions
+        for i in range(32):
+            if i not in (9, 10, 13):  # Tab, LF, CR
+                data = data.replace(chr(i), f'\\u{i:04x}')
+                
+        return data
 
 # Initialize telemetry handler
 telemetry_handler = ArubaIoTTelemetryHandler()
