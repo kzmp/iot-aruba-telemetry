@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package aruba.iot;
+
+// EnOcean packet structure
+message EnOceanPacket {
+  string device_id = 1;            // EnOcean device ID
+  string timestamp = 2;            // Timestamp when packet was received
+  int32 rssi = 3;                  // Received Signal Strength Indicator
+  string eep = 4;                  // EnOcean Equipment Profile
+  string payload = 5;              // EnOcean payload data
+  optional string ap_mac = 6;      // Access Point MAC address
+  optional string device_name = 7; // Device name if available
+  optional float distance = 8;     // Calculated distance in meters
+  optional float temperature = 9;  // Temperature reading if available
+  optional float humidity = 10;    // Humidity reading if available
+  optional bool contact_state = 11; // Contact state for window/door sensors
+  optional float illuminance = 12; // Light level for light sensors
+  optional float battery_level = 13; // Battery level percentage
+}
+
+// Collection of EnOcean packets
+message EnOceanPacketCollection {
+  repeated EnOceanPacket packets = 1;
+}

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package aruba.iot;
+
+// WiFi packet structure
+message WiFiPacket {
+  string device_mac = 1;           // MAC address of the device
+  string timestamp = 2;            // Timestamp when packet was received
+  int32 rssi = 3;                  // Received Signal Strength Indicator
+  string ssid = 4;                 // Network SSID
+  int32 channel = 5;               // WiFi channel
+  optional string ap_mac = 6;      // Access Point MAC address
+  optional string device_name = 7; // Device name if available
+  optional float distance = 8;     // Calculated distance in meters
+  optional string security = 9;    // Security type (WPA, WPA2, etc.)
+  optional int32 frequency = 10;   // Frequency in MHz
+  optional string vendor = 11;     // Device vendor if available
+  optional int32 signal_level = 12; // Signal level in percentage
+}
+
+// Collection of WiFi packets
+message WiFiPacketCollection {
+  repeated WiFiPacket packets = 1;
+}

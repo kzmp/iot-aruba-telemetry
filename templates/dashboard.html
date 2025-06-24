@@ -373,6 +373,16 @@
         .rssi-fair { background: #f56565; }
         .rssi-poor { background: #a0aec0; }
 
+        .protobuf-badge {
+            display: inline-block;
+            background-color: #9f7aea;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -621,9 +631,18 @@
             const deviceId = data.device_id || 'Unknown';
             const accessPoint = data.access_point || 'N/A';
             
+            
             let details = '';
             if (data.type === 'ble') {
                 details = `RSSI: ${data.rssi}dBm, MAC: ${data.mac_address || 'N/A'}`;
+                // Check if data has protobuf encoding info
+                if (data.encoded_with_protobuf) {
+                    details += `<br><span class="protobuf-badge">Protobuf Encoded</span>`;
+                }
+                // Add iBeacon info if available
+                if (data.uuid || data.major || data.minor) {
+                    details += `<br>iBeacon: UUID: ${data.uuid || 'N/A'}, Major: ${data.major || 'N/A'}, Minor: ${data.minor || 'N/A'}`;
+                }
             } else if (data.type === 'wifi') {
                 details = `RSSI: ${data.rssi}dBm, SSID: ${data.ssid || 'N/A'}, Channel: ${data.channel || 'N/A'}`;
             } else if (data.type === 'enocean') {

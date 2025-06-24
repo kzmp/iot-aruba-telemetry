@@ -20,6 +20,19 @@ from flask_socketio import SocketIO, emit
 import websockets
 from dotenv import load_dotenv
 
+# Import protobuf utilities
+from protobuf_utils import (
+    encode_ibeacon_packet, 
+    decode_ibeacon_packet,
+    is_ibeacon_data,
+    encode_wifi_packet,
+    decode_wifi_packet,
+    is_wifi_data,
+    encode_enocean_packet,
+    decode_enocean_packet,
+    is_enocean_data
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -84,6 +97,55 @@ class ArubaIoTTelemetryHandler:
         else:
             logger.info("process_ble_packet: No location data present")
         
+        # Check if this is an iBeacon packet
+        if is_ibeacon_data(data):
+            logger.info("process_ble_packet: Detected iBeacon data, using protobuf encoding")
+            try:
+                # Encode to protobuf binary format
+                protobuf_data = encode_ibeacon_packet(data)
+                logger.info(f"process_ble_packet: Successfully encoded {len(protobuf_data)} bytes of protobuf data")
+                
+                # Decode from protobuf to verify and get standardized format
+                processed = decode_ibeacon_packet(protobuf_data)
+                logger.info("process_ble_packet: Successfully decoded iBeacon protobuf data")
+                
+                # Ensure we have all required fields
+                processed.update({
+                    'timestamp': timestamp,
+                    'device_id': device_id,
+                    'mac_address': mac_address,
+                    'access_point': access_point,
+                    'reporter': access_point,
+                    'reported': device_id,
+                    'encoded_with_protobuf': True  # Flag to indicate this was protobuf-encoded
+                })
+                
+                # Store the binary data for potential future use
+                processed['protobuf_data'] = protobuf_data.hex()  # Store as hex string
+                logger.info("process_ble_packet: Completed iBeacon protobuf processing")
+            except Exception as e:
+                logger.error(f"process_ble_packet: Error in protobuf processing: {e}")
+                # Fall back to standard processing if protobuf fails
+                processed = self._standard_ble_processing(data, device_id, mac_address, rssi, timestamp, 
+                                                        manufacturer_data, service_uuids, location, access_point)
+        else:
+            # Standard processing for non-iBeacon BLE packets
+            logger.info("process_ble_packet: Not an iBeacon packet, using standard processing")
+            processed = self._standard_ble_processing(data, device_id, mac_address, rssi, timestamp, 
+                                                    manufacturer_data, service_uuids, location, access_point)
+        
+        logger.info("process_ble_packet: Updating BLE analytics")
+        # Update BLE analytics
+        self._update_ble_analytics(device_id, access_point, rssi, timestamp, mac_address)
+        logger.info("process_ble_packet: BLE packet processing complete")
+        
+        return processed
+    
+    def _standard_ble_processing(self, data, device_id, mac_address, rssi, timestamp, 
+                               manufacturer_data, service_uuids, location, access_point):
+        """Standard processing for BLE packets that are not encoded with protobuf"""
+        logger.info("_standard_ble_processing: Using standard BLE processing")
+        
         processed = {
             'type': 'ble',
             'timestamp': timestamp,
@@ -95,14 +157,11 @@ class ArubaIoTTelemetryHandler:
             'location': location,
             'access_point': access_point,
             'reporter': access_point,  # The AP that reported this device
-            'reported': device_id      # The device being reported
+            'reported': device_id,     # The device being reported
+            'encoded_with_protobuf': False  # Flag to indicate this was not protobuf-encoded
         }
         
-        logger.info("process_ble_packet: Updating BLE analytics")
-        # Update BLE analytics
-        self._update_ble_analytics(device_id, access_point, rssi, timestamp, mac_address)
-        logger.info("process_ble_packet: BLE packet processing complete")
-        
+        logger.info("_standard_ble_processing: Standard BLE processing complete")
         return processed
     
     def process_enocean_packet(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -134,6 +193,38 @@ class ArubaIoTTelemetryHandler:
         timestamp = datetime.now(timezone.utc).isoformat()
         logger.info(f"process_enocean_packet: Timestamp: {timestamp}")
         
+        # Check if this packet can be encoded with protobuf
+        if is_enocean_data(data):
+            logger.info("process_enocean_packet: Detected EnOcean data, using protobuf encoding")
+            try:
+                # Encode to protobuf binary format
+                protobuf_data = encode_enocean_packet(data)
+                logger.info(f"process_enocean_packet: Successfully encoded {len(protobuf_data)} bytes of protobuf data")
+                
+                # Decode from protobuf to verify and get standardized format
+                processed = decode_enocean_packet(protobuf_data)
+                logger.info("process_enocean_packet: Successfully decoded EnOcean protobuf data")
+                
+                # Ensure we have all required fields
+                processed.update({
+                    'timestamp': timestamp,
+                    'device_id': device_id,
+                    'access_point': access_point,
+                    'reporter': access_point,
+                    'reported': device_id,
+                    'encoded_with_protobuf': True  # Flag to indicate this was protobuf-encoded
+                })
+                
+                # Store the binary data for potential future use
+                processed['protobuf_data'] = protobuf_data.hex()  # Store as hex string
+                logger.info("process_enocean_packet: Completed EnOcean protobuf processing")
+                return processed
+            except Exception as e:
+                logger.error(f"process_enocean_packet: Error in protobuf processing: {e}")
+                # Fall back to standard processing if protobuf fails
+        
+        # Standard processing (if protobuf fails or is not applicable)
+        logger.info("process_enocean_packet: Using standard processing")
         processed = {
             'type': 'enocean',
             'timestamp': timestamp,
@@ -142,7 +233,10 @@ class ArubaIoTTelemetryHandler:
             'payload': payload,
             'rssi': rssi,
             'location': location,
-            'access_point': access_point
+            'access_point': access_point,
+            'reporter': access_point,
+            'reported': device_id,
+            'encoded_with_protobuf': False  # Flag to indicate this was not protobuf-encoded
         }
         
         logger.info("process_enocean_packet: EnOcean packet processing complete")
@@ -180,6 +274,40 @@ class ArubaIoTTelemetryHandler:
         timestamp = datetime.now(timezone.utc).isoformat()
         logger.info(f"process_wifi_packet: Timestamp: {timestamp}")
         
+        # Check if this packet can be encoded with protobuf
+        if is_wifi_data(data):
+            logger.info("process_wifi_packet: Detected WiFi data, using protobuf encoding")
+            try:
+                # Encode to protobuf binary format
+                protobuf_data = encode_wifi_packet(data)
+                logger.info(f"process_wifi_packet: Successfully encoded {len(protobuf_data)} bytes of protobuf data")
+                
+                # Decode from protobuf to verify and get standardized format
+                processed = decode_wifi_packet(protobuf_data)
+                logger.info("process_wifi_packet: Successfully decoded WiFi protobuf data")
+                
+                # Ensure we have all required fields
+                processed.update({
+                    'timestamp': timestamp,
+                    'device_id': device_id,
+                    'mac_address': mac_address,
+                    'ssid': ssid,
+                    'access_point': access_point,
+                    'reporter': access_point,
+                    'reported': device_id,
+                    'encoded_with_protobuf': True  # Flag to indicate this was protobuf-encoded
+                })
+                
+                # Store the binary data for potential future use
+                processed['protobuf_data'] = protobuf_data.hex()  # Store as hex string
+                logger.info("process_wifi_packet: Completed WiFi protobuf processing")
+                return processed
+            except Exception as e:
+                logger.error(f"process_wifi_packet: Error in protobuf processing: {e}")
+                # Fall back to standard processing if protobuf fails
+        
+        # Standard processing (if protobuf fails or is not applicable)
+        logger.info("process_wifi_packet: Using standard processing")
         processed = {
             'type': 'wifi',
             'timestamp': timestamp,
@@ -189,7 +317,10 @@ class ArubaIoTTelemetryHandler:
             'rssi': rssi,
             'channel': channel,
             'location': location,
-            'access_point': access_point
+            'access_point': access_point,
+            'reporter': access_point,
+            'reported': device_id,
+            'encoded_with_protobuf': False  # Flag to indicate this was not protobuf-encoded
         }
         
         logger.info("process_wifi_packet: WiFi packet processing complete")
@@ -200,9 +331,28 @@ class ArubaIoTTelemetryHandler:
         logger.info("process_telemetry: Starting telemetry processing")
         logger.info(f"process_telemetry: Input data type: {type(raw_data)}")
         
-        # Handle different data types (bytes vs string)
+        # Check if this might be protobuf binary data
         if isinstance(raw_data, bytes):
             logger.info(f"process_telemetry: Processing binary data of {len(raw_data)} bytes")
+            
+            # First check if this might be protobuf data
+            # A simple heuristic: protobuf data typically starts with a field tag
+            # and doesn't start with common JSON characters like '{', '[', etc.
+            try:
+                # Peek at first few bytes to check if this might be protobuf
+                first_byte = raw_data[0] if raw_data else 0
+                # Most protobuf messages start with a field number tag
+                # which is unlikely to be a common JSON character
+                if first_byte < 32 or first_byte > 126:
+                    logger.info("process_telemetry: Data appears to be binary protobuf, attempting protobuf processing")
+                    protobuf_result = self.process_telemetry_protobuf(raw_data)
+                    if protobuf_result:
+                        logger.info("process_telemetry: Successfully processed as protobuf data")
+                        return protobuf_result
+                    else:
+                        logger.info("process_telemetry: Protobuf processing failed, falling back to standard processing")
+            except Exception as e:
+                logger.warning(f"process_telemetry: Error in protobuf detection: {e}")
             
             # Add hexdump of first 128 bytes for debugging binary data
             logger.info("process_telemetry: First 128 bytes hexdump:")
@@ -381,6 +531,80 @@ class ArubaIoTTelemetryHandler:
             import traceback
             logger.error(f"process_telemetry: Traceback: {traceback.format_exc()}")
             return None
+
+    def process_telemetry_protobuf(self, binary_data: bytes) -> Dict[str, Any]:
+        """Process telemetry data that was received in protobuf format"""
+        logger.info("process_telemetry_protobuf: Processing protobuf telemetry data")
+        
+        try:
+            # Try to detect packet type from first few bytes
+            # This is a simplified approach - in practice, you might need a more robust method
+            # to identify the protobuf message type
+            
+            # First try to decode as iBeacon protobuf
+            try:
+                from protobuf_utils import decode_ibeacon_packet
+                processed = decode_ibeacon_packet(binary_data)
+                logger.info("process_telemetry_protobuf: Successfully decoded as iBeacon protobuf")
+            except Exception as ibeacon_error:
+                # If iBeacon fails, try WiFi
+                try:
+                    from protobuf_utils import decode_wifi_packet
+                    processed = decode_wifi_packet(binary_data)
+                    logger.info("process_telemetry_protobuf: Successfully decoded as WiFi protobuf")
+                except Exception as wifi_error:
+                    # If WiFi fails, try EnOcean
+                    try:
+                        from protobuf_utils import decode_enocean_packet
+                        processed = decode_enocean_packet(binary_data)
+                        logger.info("process_telemetry_protobuf: Successfully decoded as EnOcean protobuf")
+                    except Exception as enocean_error:
+                        # If all decoders fail, raise the initial error
+                        logger.error(f"process_telemetry_protobuf: Failed to decode protobuf with any decoder")
+                        logger.error(f"iBeacon error: {ibeacon_error}")
+                        logger.error(f"WiFi error: {wifi_error}")
+                        logger.error(f"EnOcean error: {enocean_error}")
+                        raise ibeacon_error
+            
+            # Add to telemetry data and device registry
+            self.telemetry_data.append(processed)
+            
+            # Keep only last 1000 entries
+            if len(self.telemetry_data) > 1000:
+                self.telemetry_data = self.telemetry_data[-1000:]
+                
+            # Update device registry
+            device_id = processed.get('device_id')
+            if device_id and device_id != 'unknown':
+                self.device_registry[device_id] = {
+                    'last_seen': processed['timestamp'],
+                    'type': processed['type'],
+                    'access_point': processed.get('access_point', '')
+                }
+                
+            # Update analytics if applicable
+            if processed.get('type') == 'ble':
+                self._update_ble_analytics(
+                    processed.get('device_id', 'unknown'),
+                    processed.get('access_point', ''),
+                    processed.get('rssi', 0),
+                    processed.get('timestamp', datetime.now(timezone.utc).isoformat()),
+                    processed.get('mac_address', '')
+                )
+                
+            logger.info(f"process_telemetry_protobuf: Successfully processed protobuf data for device {device_id}")
+            return processed
+            
+        except Exception as e:
+            logger.error(f"process_telemetry_protobuf: Failed to process protobuf data: {e}")
+            # Fall back to normal telemetry processing if protobuf decoding fails
+            # First convert bytes to string if needed
+            try:
+                decoded_data = binary_data.decode('utf-8')
+                return self.process_telemetry(decoded_data)
+            except:
+                logger.error("process_telemetry_protobuf: Could not fall back to standard processing")
+                return None
 
     def _update_ble_analytics(self, device_id: str, access_point: str, rssi: int, timestamp: str, mac_address: str):
         """Update BLE analytics data"""
@@ -684,33 +908,54 @@ async def aruba_websocket_server(websocket, path):
     try:
         async for message in websocket:
             try:
-                # Log received message, safely truncating if necessary
+                # Log received message format info
                 if isinstance(message, bytes):
                     logger.info(f"Received binary message from {client_address[0]} ({len(message)} bytes)")
+                    
+                    # Show first 16 bytes as hex for debugging
+                    preview = ' '.join([f'{b:02x}' for b in message[:16]])
+                    logger.info(f"Binary data preview: {preview}...")
                 else:
-                    logger.info(f"Received message from {client_address[0]}: {message[:200]}...")
-            except:
-                logger.info(f"Received message from {client_address[0]} (unprintable format)")
+                    msg_preview = message[:200] + "..." if len(message) > 200 else message
+                    logger.info(f"Received text message from {client_address[0]}: {msg_preview}")
+            except Exception as e:
+                logger.info(f"Received message from {client_address[0]} (error previewing: {e})")
             
-            # Process the telemetry data (now handles bytes or string)
+            # Process the telemetry data (handles both bytes and string)
             processed_data = telemetry_handler.process_telemetry(message)
             
             if processed_data:
                 # Store the data for the web interface
                 logger.info(f"Successfully processed {processed_data['type']} packet from {processed_data.get('device_id', 'unknown')}")
                 
+                # Determine if this was processed using protobuf
+                was_protobuf = processed_data.get('encoded_with_protobuf', False)
+                
                 # Send acknowledgment back to Aruba AP
                 try:
                     ack_response = json.dumps({
                         "status": "received",
                         "packet_type": processed_data['type'],
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
+                        "protobuf_encoded": was_protobuf
                     })
                     await websocket.send(ack_response)
+                    logger.info(f"Sent acknowledgment for {processed_data['type']} packet")
                 except Exception as e:
                     logger.error(f"Failed to send acknowledgment: {e}")
             else:
                 logger.warning(f"Failed to process message from {client_address}")
+                
+                # Send error acknowledgment
+                try:
+                    ack_response = json.dumps({
+                        "status": "error",
+                        "message": "Failed to process telemetry data",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await websocket.send(ack_response)
+                except Exception as e:
+                    logger.error(f"Failed to send error acknowledgment: {e}")
             
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Aruba AP {client_address[0]} disconnected")

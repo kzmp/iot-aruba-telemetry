@@ -3,12 +3,26 @@
 Test client to simulate Aruba access point sending IoT telemetry data
 """
 
+import argparse
+import random
 import asyncio
 import json
-import random
 import time
 import websockets
 from datetime import datetime, timezone
+
+# Try to import protobuf utilities
+try:
+    import sys
+    import os
+    # Add the parent directory to the path to find protobuf_utils
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from protobuf_utils import encode_ibeacon_packet
+    HAS_PROTOBUF = True
+    print("Found protobuf utilities, protobuf encoding is available")
+except ImportError:
+    HAS_PROTOBUF = False
+    print("Warning: protobuf_utils module not found, protobuf encoding will be disabled")
 
 class ArubaAPSimulator:
     """Simulates an Aruba access point sending IoT telemetry"""
@@ -83,17 +97,59 @@ class ArubaAPSimulator:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     
-    def generate_random_packet(self):
+    def generate_ibeacon_packet(self):
+        """Generate a simulated iBeacon packet"""
+        # Generate random iBeacon data
+        uuid = f"{random.randint(0, 0xffffffff):08x}-{random.randint(0, 0xffff):04x}-{random.randint(0, 0xffff):04x}-{random.randint(0, 0xffff):04x}-{random.randint(0, 0xffffffffffff):012x}"
+        major = random.randint(0, 65535)
+        minor = random.randint(0, 65535)
+        tx_power = -random.randint(55, 80)  # Typically around -60 to -75 dBm
+        
+        # Basic iBeacon structure
+        packet = {
+            "type": "ble",
+            "subtype": "ibeacon",
+            "deviceId": f"ibeacon-{uuid[:8]}-{major}-{minor}",
+            "macAddress": random.choice(self.device_macs),
+            "rssi": random.randint(-80, -30),
+            "manufacturerData": f"4c000215{uuid.replace('-', '')}{major:04x}{minor:04x}{abs(tx_power):02x}",
+            "uuid": uuid,
+            "major": major,
+            "minor": minor,
+            "txPower": tx_power,
+            "serviceUuids": [],
+            "location": {
+                "x": round(random.uniform(0, 100), 2),
+                "y": round(random.uniform(0, 100), 2),
+                "z": round(random.uniform(0, 10), 2)
+            },
+            "accessPoint": self.ap_name,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # If protobuf is available, encode the packet using protobuf
+        if HAS_PROTOBUF:
+            packet = encode_ibeacon_packet(packet)
+        
+        return packet
+    
+    def generate_random_packet(self, use_protobuf=False):
         """Generate a random packet type"""
-        packet_types = [
-            self.generate_ble_packet,
-            self.generate_wifi_packet,
-            self.generate_enocean_packet
-        ]
-        # Weight BLE packets more heavily as they're more common
-        weights = [0.6, 0.3, 0.1]
-        packet_generator = random.choices(packet_types, weights=weights)[0]
-        return packet_generator()
+        if use_protobuf:
+            # Always generate an iBeacon packet when protobuf is requested
+            print("Generating iBeacon packet for protobuf encoding")
+            return self.generate_ibeacon_packet()
+        else:
+            packet_types = [
+                self.generate_ble_packet,
+                self.generate_wifi_packet,
+                self.generate_enocean_packet,
+                self.generate_ibeacon_packet
+            ]
+            # Weight BLE packets more heavily as they're more common
+            weights = [0.4, 0.3, 0.1, 0.2]  # Added weight for iBeacon packets
+            packet_generator = random.choices(packet_types, weights=weights)[0]
+            return packet_generator()
 
 async def simulate_aruba_ap(server_uri, duration=300, client_id=None, access_token=None):
     """
@@ -123,14 +179,34 @@ async def simulate_aruba_ap(server_uri, duration=300, client_id=None, access_tok
             packet_count = 0
             
             while time.time() - start_time < duration:
-                # Generate and send a packet
-                packet = simulator.generate_random_packet()
-                packet_json = json.dumps(packet, indent=2)
+                # Determine if we should try to use protobuf
+                use_protobuf = HAS_PROTOBUF and args.protobuf and random.random() < 0.3
                 
-                await websocket.send(packet_json)
-                packet_count += 1
-                
-                print(f"Sent packet #{packet_count}: {packet['type'].upper()} from {packet['deviceId']}")
+                if use_protobuf:
+                    # Generate an iBeacon packet specifically for protobuf
+                    packet = simulator.generate_random_packet(use_protobuf=True)
+                    try:
+                        print(f"🔶 Using protobuf encoding for iBeacon packet")
+                        binary_data = encode_ibeacon_packet(packet)
+                        print(f"📦 Sending {len(binary_data)} bytes of protobuf binary data")
+                        await websocket.send(binary_data)
+                        packet_count += 1
+                        print(f"Sent packet #{packet_count}: BLE (IBEACON) (Protobuf) from {packet['deviceId']}")
+                    except Exception as e:
+                        print(f"❌ Error encoding protobuf: {e}")
+                        print(f"⚠️ Falling back to JSON")
+                        # Fall back to JSON if protobuf encoding fails
+                        packet_json = json.dumps(packet)
+                        await websocket.send(packet_json)
+                        packet_count += 1
+                        print(f"Sent packet #{packet_count}: BLE (IBEACON) from {packet['deviceId']}")
+                else:
+                    # Generate a regular packet
+                    packet = simulator.generate_random_packet()
+                    packet_json = json.dumps(packet)
+                    await websocket.send(packet_json)
+                    packet_count += 1
+                    print(f"Sent packet #{packet_count}: {packet['type'].upper()} from {packet['deviceId']}")
                 
                 # Random delay between packets (0.1 to 2 seconds)
                 await asyncio.sleep(random.uniform(0.1, 2.0))
@@ -146,29 +222,14 @@ async def simulate_aruba_ap(server_uri, duration=300, client_id=None, access_tok
     except Exception as e:
         print(f"Error during simulation: {e}")
 
-if __name__ == "__main__":
-    import argparse
+def main(args):
+    """Main function"""
+    global HAS_PROTOBUF  # Allow main to modify this variable
     
-    parser = argparse.ArgumentParser(description="Simulate Aruba AP sending IoT telemetry")
-    parser.add_argument("--server", default="ws://localhost:9191", 
-                        help="WebSocket server URI (default: ws://localhost:9191)")
-    parser.add_argument("--duration", type=int, default=60,
-                        help="Simulation duration in seconds (default: 60)")
-    parser.add_argument("--token", default="1234",
-                        help="Authentication token (default: 1234)")
-    parser.add_argument("--client-id", default="",
-                        help="Client ID for authentication (default: none)")
-    parser.add_argument("--access-token", default="",
-                        help="Access token for authentication (default: none)")
-    parser.add_argument("--auth-method", default="token", choices=["token", "client"],
-                        help="Authentication method: 'token' or 'client' (default: token)")
-    
-    args = parser.parse_args()
-    
-    print("Aruba AP Simulator")
-    print("==================")
-    print(f"Server: {args.server}")
-    print(f"Duration: {args.duration} seconds")
+    # Check protobuf availability if requested
+    if args.protobuf and not HAS_PROTOBUF:
+        print("⚠️ Warning: Protobuf support requested but protobuf_utils module not found")
+        print("⚠️ Running without protobuf support")
     
     # Add path to server URI
     base_uri = args.server
@@ -198,12 +259,36 @@ if __name__ == "__main__":
         server_uri = f"{base_uri}?{auth_params}"
     
     # Run the simulation with the appropriate authentication method
-    if args.auth_method == "client":
-        asyncio.run(simulate_aruba_ap(
-            server_uri, 
-            args.duration,
-            client_id=args.client_id,
-            access_token=args.access_token
-        ))
-    else:
-        asyncio.run(simulate_aruba_ap(server_uri, args.duration))
+    asyncio.run(simulate_aruba_ap(
+        server_uri=server_uri, 
+        duration=args.duration,
+        client_id=args.client_id if args.auth_method == "client" else None,
+        access_token=args.access_token if args.auth_method == "client" else None
+    ))
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Simulate Aruba AP sending IoT telemetry")
+    parser.add_argument("--server", default="ws://localhost:9191", 
+                        help="WebSocket server URI (default: ws://localhost:9191)")
+    parser.add_argument("--duration", type=int, default=60,
+                        help="Simulation duration in seconds (default: 60)")
+    parser.add_argument("--token", default="1234",
+                        help="Authentication token (default: 1234)")
+    parser.add_argument("--client-id", default="",
+                        help="Client ID for authentication (default: none)")
+    parser.add_argument("--access-token", default="",
+                        help="Access token for authentication (default: none)")
+    parser.add_argument("--auth-method", default="token", choices=["token", "client"],
+                        help="Authentication method: 'token' or 'client' (default: token)")
+    parser.add_argument("--protobuf", action="store_true", 
+                        help="Enable protobuf encoding for iBeacon packets")
+    
+    args = parser.parse_args()
+    
+    print("Aruba AP Simulator")
+    print("==================")
+    print(f"Server: {args.server}")
+    print(f"Duration: {args.duration} seconds")
+    
+    # Run the main function with the parsed arguments
+    main(args)

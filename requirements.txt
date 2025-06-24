@@ -6,6 +6,9 @@ asyncio
 json5
 paho-mqtt==1.6.1
 requests==2.31.0
-python-dotenv==1.0.0
+python-dotenv==1.0.9
+gunicorn==21.2.0
+eventlet==0.33.3
+protobuf==4.25.1
 gunicorn==21.2.0
 eventlet==0.33.3

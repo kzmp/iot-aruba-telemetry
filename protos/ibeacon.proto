@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package aruba.iot;
+
+// iBeacon packet structure
+message IBeaconPacket {
+  string device_mac = 1;           // MAC address of the device
+  string timestamp = 2;            // Timestamp when packet was received
+  int32 rssi = 3;                  // Received Signal Strength Indicator
+  string uuid = 4;                 // iBeacon UUID
+  int32 major = 5;                 // iBeacon Major value
+  int32 minor = 6;                 // iBeacon Minor value
+  int32 tx_power = 7;              // Transmission power
+  optional string ap_mac = 8;      // Access Point MAC address
+  optional string device_name = 9; // Device name if available
+  optional float distance = 10;    // Calculated distance in meters
+}
+
+// Collection of iBeacon packets
+message IBeaconPacketCollection {
+  repeated IBeaconPacket packets = 1;
+}

@@ -10,6 +10,7 @@ A Python web application with WebSocket support designed to receive and visualiz
 - **Device Registry**: Tracks discovered devices and their metadata
 - **Statistics & Analytics**: Packet distribution charts and counters
 - **Test Simulator**: Built-in AP simulator for testing and development
+- **Protobuf Integration**: Efficient binary encoding for multiple packet types (iBeacon, WiFi, EnOcean)
 
 ## 🏗️ Architecture
 
@@ -167,7 +168,11 @@ ws://your-server-ip:8765
 
 ### Using the Built-in Simulator
 
-The included test client simulates an Aruba access point:
+The application includes multiple test clients to simulate Aruba access points:
+
+#### Basic Test Client
+
+Simulates an Aruba access point sending mixed packet types:
 
 ```bash
 # Basic usage
@@ -178,6 +183,36 @@ python test_client.py --server ws://192.168.1.100:8765 --duration 300
 
 # Help
 python test_client.py --help
+```
+
+#### iBeacon Protobuf Test Client
+
+Specializes in sending iBeacon packets with Protocol Buffer encoding:
+
+```bash
+# Basic usage
+python test_ibeacon_protobuf.py
+
+# Without protobuf encoding (JSON only)
+python test_ibeacon_protobuf.py --json-only
+```
+
+#### Multi-Protocol Test Client
+
+Advanced test client that can simulate all packet types with Protocol Buffer encoding:
+
+```bash
+# Send all packet types (BLE/iBeacon, WiFi, EnOcean)
+python test_multi_protocol.py
+
+# Send only specific packet types
+python test_multi_protocol.py --packet-types wifi,enocean
+
+# Send JSON-only (no protobuf)
+python test_multi_protocol.py --json-only
+
+# Custom duration and server
+python test_multi_protocol.py --duration 120 --server ws://192.168.1.100:9191
 ```
 
 ### Manual Testing
@@ -193,18 +228,18 @@ wscat -c ws://localhost:8765
 
 ## 📁 Project Structure
 
-```
-iot-aruba/
-├── app.py                 # Main Flask application
-├── test_client.py         # AP simulator for testing
-├── requirements.txt       # Python dependencies
-├── .env                  # Environment configuration
-├── templates/
-│   └── dashboard.html    # Web dashboard template
-├── .github/
-│   └── copilot-instructions.md
-└── README.md
-```
+- **app.py**: Main Flask application and WebSocket server
+- **test_client.py**: Simulator for testing AP connections
+- **protobuf_utils.py**: Protocol Buffer utilities for efficient binary encoding
+- **protos/**: Protocol Buffer schema definitions
+- **templates/dashboard.html**: Real-time dashboard interface
+
+## 📚 Documentation
+
+- [Aruba Connection Guide](ARUBA_CONNECTION_GUIDE.md): How to connect Aruba APs
+- [Deployment Guide](DEPLOYMENT_GUIDE.md): How to deploy the application
+- [Docker Install](DOCKER_INSTALL.md): Docker deployment instructions
+- [Protobuf Integration](PROTOBUF_INTEGRATION.md): Details about Protocol Buffer implementation
 
 ## 🔍 API Endpoints
 
