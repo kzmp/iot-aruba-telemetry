@@ -17,8 +17,9 @@ async def test_websocket_connection():
     client_id = "test-client-1"
     access_token = "1234"
     
-    # Method 1: Add authentication in URL query parameters
-    auth_url = f"{server_url}?clientID={client_id}&accessToken={access_token}"
+    # Method 1: Add authentication in URL query parameters using token
+    # This is the method that works with our Aruba IoT server
+    auth_url = f"{server_url}?token={access_token}"
     
     # Method 2: Add authentication in headers (alternative method)
     extra_headers = {
@@ -85,7 +86,8 @@ async def test_websocket_connection_with_params(server_url=None, client_id=None,
     access_token = access_token or "1234"
     
     # Add authentication in URL query parameters
-    auth_url = f"{server_url}?clientID={client_id}&accessToken={access_token}"
+    # Try the simple token authentication that works with the test_client.py
+    auth_url = f"{server_url}?token={access_token}"
     
     # Add authentication in headers (alternative method)
     extra_headers = {
