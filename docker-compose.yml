@@ -10,6 +10,7 @@ version: '3'
 services:
   aruba-iot:
     build: .
+    command: python app.py --allow-unsafe-werkzeug
     ports:
       - "9090:9090"  # Web dashboard
       - "9191:9191"  # WebSocket server
