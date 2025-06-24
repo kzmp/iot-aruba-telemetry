@@ -186,15 +186,27 @@ echo =================================
 set /a STEP_COUNT=6
 call :LOG_INFO "Step 6: Starting firewall configuration"
 
-call :TRY_CATCH_BEGIN "Configuring Windows Firewall"
+REM Firewall is non-critical, so we handle errors differently
+call :TRY_CATCH_BEGIN "Configuring Windows Firewall (non-critical)"
+
+REM Save current errorlevel to prevent cascading failures
+set "SAVED_ERRORLEVEL=!ERRORLEVEL!"
+
 call :CONFIGURE_FIREWALL_ENHANCED
+
+REM Restore errorlevel and log completion regardless of result
+set "ERRORLEVEL=!SAVED_ERRORLEVEL!"
 call :LOG_INFO "Firewall configuration completed with status: !FIREWALL_OK!"
 
 if !FIREWALL_OK!==0 (
-    echo %YELLOW%⚠️  Firewall configuration had issues (non-critical)%RESET%
+    echo %YELLOW%⚠️  Firewall configuration had issues (non-critical - continuing setup)%RESET%
+    call :LOG_WARNING "Firewall configuration failed but continuing with setup"
 ) else (
-    echo %GREEN%✅ Firewall configured%RESET%
+    echo %GREEN%✅ Firewall configured successfully%RESET%
 )
+
+REM Always succeed on firewall step since it's non-critical
+set "ERRORLEVEL=0"
 call :TRY_CATCH_END
 
 REM ============================================================================
@@ -254,8 +266,18 @@ call :LOG_INFO "TRY: %CURRENT_OPERATION%"
 goto :eof
 
 :TRY_CATCH_END
-if !ERRORLEVEL! neq 0 (
-    call :HANDLE_ERROR "OPERATION_FAILED" "Operation failed: %CURRENT_OPERATION%" "Check the detailed logs for more information"
+REM Only handle errors if ERRORLEVEL is actually set and non-zero
+if defined ERRORLEVEL if !ERRORLEVEL! neq 0 (
+    REM Check if this is a critical step or non-critical (like firewall)
+    echo %CURRENT_OPERATION% | findstr /i "firewall non-critical" >nul 2>&1
+    if !ERRORLEVEL!==0 (
+        REM Non-critical operation - log warning but don't fail
+        call :LOG_WARNING "Non-critical operation had issues: %CURRENT_OPERATION%"
+        set "ERRORLEVEL=0"
+    ) else (
+        REM Critical operation - handle as error
+        call :HANDLE_ERROR "OPERATION_FAILED" "Operation failed: %CURRENT_OPERATION%" "Check the detailed logs for more information"
+    )
 )
 goto :eof
 
@@ -707,72 +729,181 @@ goto :eof
 call :LOG_INFO "Starting enhanced firewall configuration"
 echo %CYAN%🔥 Configuring Windows Firewall...%RESET%
 
+REM Initialize firewall status
+set "FIREWALL_OK=0"
+
 REM Check if we have admin privileges
+call :LOG_INFO "Checking administrator privileges"
 net session >nul 2>&1
 set "ADMIN_CHECK_RESULT=!ERRORLEVEL!"
 
 if !ADMIN_CHECK_RESULT! neq 0 (
-    call :LOG_WARNING "No administrator privileges detected"
-    echo %YELLOW%⚠️  Administrator privileges required for firewall configuration%RESET%
+    call :LOG_WARNING "No administrator privileges detected for firewall configuration"
+    echo %YELLOW%⚠️  Administrator privileges required for automatic firewall configuration%RESET%
     echo.
-    echo Would you like to:
-    echo 1. Skip firewall configuration (manual setup required)
-    echo 2. Restart script as administrator
-    echo 3. Configure firewall manually later
+    echo %CYAN%Firewall Configuration Options:%RESET%
+    echo 1. Skip firewall configuration (continue setup - you can configure manually later)
+    echo 2. Restart script as administrator (recommended)
+    echo 3. Get manual firewall instructions
     echo.
-    set /p firewall_choice="Enter your choice (1-3): "
+    set /p firewall_choice="Enter your choice (1-3) [default: 1]: "
+    
+    REM Default to option 1 if no input
+    if "!firewall_choice!"=="" set "firewall_choice=1"
     
     if "!firewall_choice!"=="2" (
-        echo %CYAN%🔄 Restarting with administrator privileges...%RESET%
-        powershell -Command "Start-Process cmd -ArgumentList '/c cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs"
-        exit /b
+        echo %CYAN%🔄 Attempting to restart with administrator privileges...%RESET%
+        echo Please approve the UAC prompt if it appears...
+        timeout /t 3 /nobreak >nul
+        call :LOG_INFO "Attempting administrator restart"
+        
+        REM Try to restart as admin
+        powershell -Command "try { Start-Process cmd -ArgumentList '/c cd /d \"%CD%\" && \"%~f0\"' -Verb RunAs -ErrorAction Stop; exit 0 } catch { exit 1 }" 2>nul
+        set "RESTART_RESULT=!ERRORLEVEL!"
+        
+        if !RESTART_RESULT!==0 (
+            echo %GREEN%✅ Restarting as administrator...%RESET%
+            exit /b 0
+        ) else (
+            echo %RED%❌ Could not restart as administrator%RESET%
+            echo Continuing with setup - firewall configuration skipped
+            call :LOG_WARNING "Administrator restart failed, continuing without firewall setup"
+            goto :firewall_skip
+        )
     ) else if "!firewall_choice!"=="3" (
-        echo %YELLOW%📋 Manual firewall configuration required:%RESET%
-        echo 1. Run configure_firewall.bat as administrator
-        echo 2. Or manually allow ports 9090 and 9191
-        set "FIREWALL_OK=0"
-        goto :eof
+        call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+        goto :firewall_skip
     ) else (
-        echo %YELLOW%⚠️  Skipping firewall configuration%RESET%
-        set "FIREWALL_OK=0"
-        goto :eof
+        echo %YELLOW%⚠️  Skipping automatic firewall configuration%RESET%
+        call :LOG_INFO "User chose to skip firewall configuration"
+        goto :firewall_skip
     )
 )
 
-REM Configure firewall rules with enhanced error checking
+REM We have admin privileges - proceed with firewall configuration
+call :LOG_INFO "Administrator privileges confirmed - configuring firewall rules"
+echo %GREEN%✅ Administrator privileges confirmed%RESET%
+
+REM Configure firewall rules with comprehensive error checking
 call :LOG_INFO "Configuring firewall rules for ports 9090 and 9191"
 
-echo Configuring firewall rule for web dashboard (port 9090)...
+echo %CYAN%Configuring firewall rule for web dashboard (port 9090)...%RESET%
+REM Remove existing rule first (ignore errors)
 netsh advfirewall firewall delete rule name="Aruba IoT Web Dashboard" >nul 2>&1
-netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 >nul 2>&1
+
+REM Add new rule
+netsh advfirewall firewall add rule name="Aruba IoT Web Dashboard" dir=in action=allow protocol=TCP localport=9090 description="Aruba IoT Telemetry Web Dashboard" >nul 2>&1
 set "FIREWALL_WEB_RESULT=!ERRORLEVEL!"
+call :LOG_INFO "Web dashboard firewall rule result: !FIREWALL_WEB_RESULT!"
 
-echo Configuring firewall rule for WebSocket server (port 9191)...
+if !FIREWALL_WEB_RESULT!==0 (
+    echo   %GREEN%✅ Web dashboard rule added%RESET%
+) else (
+    echo   %RED%❌ Web dashboard rule failed%RESET%
+    call :LOG_ERROR "Failed to add web dashboard firewall rule"
+)
+
+echo %CYAN%Configuring firewall rule for WebSocket server (port 9191)...%RESET%
+REM Remove existing rule first (ignore errors)
 netsh advfirewall firewall delete rule name="Aruba IoT WebSocket" >nul 2>&1
-netsh advfirewall firewall add rule name="Aruba IoT WebSocket" dir=in action=allow protocol=TCP localport=9191 >nul 2>&1
-set "FIREWALL_WS_RESULT=!ERRORLEVEL!"
 
-REM Verify firewall rules
+REM Add new rule
+netsh advfirewall firewall add rule name="Aruba IoT WebSocket" dir=in action=allow protocol=TCP localport=9191 description="Aruba IoT Telemetry WebSocket Server" >nul 2>&1
+set "FIREWALL_WS_RESULT=!ERRORLEVEL!"
+call :LOG_INFO "WebSocket firewall rule result: !FIREWALL_WS_RESULT!"
+
+if !FIREWALL_WS_RESULT!==0 (
+    echo   %GREEN%✅ WebSocket rule added%RESET%
+) else (
+    echo   %RED%❌ WebSocket rule failed%RESET%
+    call :LOG_ERROR "Failed to add WebSocket firewall rule"
+)
+
+REM Verify firewall rules were created successfully
 call :LOG_INFO "Verifying firewall rules"
+echo %CYAN%Verifying firewall rules...%RESET%
+
 netsh advfirewall firewall show rule name="Aruba IoT Web Dashboard" >nul 2>&1
 set "VERIFY_WEB_RESULT=!ERRORLEVEL!"
 
 netsh advfirewall firewall show rule name="Aruba IoT WebSocket" >nul 2>&1
 set "VERIFY_WS_RESULT=!ERRORLEVEL!"
 
+call :LOG_INFO "Verification results - Web: !VERIFY_WEB_RESULT!, WebSocket: !VERIFY_WS_RESULT!"
+
+REM Determine overall firewall configuration success
 if !FIREWALL_WEB_RESULT!==0 if !FIREWALL_WS_RESULT!==0 if !VERIFY_WEB_RESULT!==0 if !VERIFY_WS_RESULT!==0 (
     set "FIREWALL_OK=1"
-    call :LOG_SUCCESS "Firewall rules configured and verified successfully"
-    echo %GREEN%✅ Firewall rules configured%RESET%
+    call :LOG_SUCCESS "All firewall rules configured and verified successfully"
+    echo %GREEN%✅ All firewall rules configured successfully%RESET%
 ) else (
-    call :LOG_ERROR "Firewall configuration failed or could not be verified"
-    echo %RED%❌ Firewall configuration issues detected%RESET%
-    echo Web rule result: !FIREWALL_WEB_RESULT!
-    echo WebSocket rule result: !FIREWALL_WS_RESULT!
-    echo Web verify result: !VERIFY_WEB_RESULT!
-    echo WebSocket verify result: !VERIFY_WS_RESULT!
-    set "FIREWALL_OK=0"
+    call :LOG_WARNING "Some firewall rules failed - manual configuration may be needed"
+    echo %YELLOW%⚠️  Some firewall rules had issues%RESET%
+    echo.
+    echo %CYAN%Firewall Status:%RESET%
+    echo   Web Dashboard (9090): !FIREWALL_WEB_RESULT! ^| Verify: !VERIFY_WEB_RESULT!
+    echo   WebSocket (9191): !FIREWALL_WS_RESULT! ^| Verify: !VERIFY_WS_RESULT!
+    echo   (0 = success, non-zero = error)
+    echo.
+    
+    REM Partial success is still useful
+    if !FIREWALL_WEB_RESULT!==0 (
+        echo %GREEN%✅ Web dashboard accessible (port 9090)%RESET%
+    )
+    if !FIREWALL_WS_RESULT!==0 (
+        echo %GREEN%✅ WebSocket server accessible (port 9191)%RESET%
+    )
+    
+    if !FIREWALL_WEB_RESULT! neq 0 if !FIREWALL_WS_RESULT! neq 0 (
+        echo %RED%❌ Both firewall rules failed%RESET%
+        call :SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+    )
 )
+
+goto :firewall_complete
+
+:firewall_skip
+call :LOG_INFO "Firewall configuration skipped - manual setup required"
+echo %YELLOW%⚠️  Firewall configuration skipped%RESET%
+echo.
+echo %CYAN%📋 Manual Firewall Setup Required:%RESET%
+echo =====================================
+echo After setup completes, you'll need to manually allow these ports:
+echo   • Port 9090 (Web Dashboard)
+echo   • Port 9191 (WebSocket Server)
+echo.
+echo %YELLOW%Quick Manual Steps:%RESET%
+echo 1. Run 'configure_firewall.bat' as administrator, OR
+echo 2. Open Windows Defender Firewall settings
+echo 3. Allow the ports 9090 and 9191 for the application
+echo.
+set "FIREWALL_OK=0"
+
+:firewall_complete
+call :LOG_INFO "Firewall configuration section completed with status: !FIREWALL_OK!"
+goto :eof
+
+:SHOW_MANUAL_FIREWALL_INSTRUCTIONS
+echo.
+echo %CYAN%📋 Manual Firewall Configuration Instructions:%RESET%
+echo =============================================
+echo.
+echo %YELLOW%Option 1: Use the provided script (easiest)%RESET%
+echo   Right-click 'configure_firewall.bat' → "Run as administrator"
+echo.
+echo %YELLOW%Option 2: Windows Defender Firewall%RESET%
+echo   1. Press Win+R, type: wf.msc
+echo   2. Click "Inbound Rules" → "New Rule"
+echo   3. Select "Port" → Next
+echo   4. TCP, Specific ports: 9090,9191 → Next
+echo   5. Allow the connection → Next
+echo   6. Apply to all profiles → Next
+echo   7. Name: "Aruba IoT Telemetry" → Finish
+echo.
+echo %YELLOW%Option 3: Command Line (run as administrator)%RESET%
+echo   netsh advfirewall firewall add rule name="Aruba IoT Web" dir=in action=allow protocol=TCP localport=9090
+echo   netsh advfirewall firewall add rule name="Aruba IoT WS" dir=in action=allow protocol=TCP localport=9191
+echo.
 goto :eof
 
 :RUN_FINAL_VALIDATION
@@ -921,18 +1052,18 @@ echo %RED%❌ SETUP FAILED - COMPREHENSIVE ERROR SUMMARY%RESET%
 echo ==============================================
 echo.
 echo %BLUE%Setup Progress:%RESET%
-echo Step 1 - Project Directory: !STEP_COUNT! GEQ 1 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
-echo Step 2 - Python Validation: !PYTHON_OK!==1 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
-echo Step 3 - Virtual Environment: !VENV_OK!==1 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
-echo Step 4 - Dependencies: !DEPS_OK!==1 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
-echo Step 5 - Configuration: !CONFIG_OK!==1 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
-echo Step 6 - Firewall: !FIREWALL_OK!==1 && echo %GREEN%✅%RESET% || echo %YELLOW%⚠️%RESET%
-echo Step 7 - Validation: !STEP_COUNT! GEQ 7 && echo %GREEN%✅%RESET% || echo %RED%❌%RESET%
+if !STEP_COUNT! GEQ 1 (echo Step 1 - Project Directory: %GREEN%✅%RESET%) else (echo Step 1 - Project Directory: %RED%❌%RESET%)
+if !PYTHON_OK!==1 (echo Step 2 - Python Validation: %GREEN%✅%RESET%) else (echo Step 2 - Python Validation: %RED%❌%RESET%)
+if !VENV_OK!==1 (echo Step 3 - Virtual Environment: %GREEN%✅%RESET%) else (echo Step 3 - Virtual Environment: %RED%❌%RESET%)
+if !DEPS_OK!==1 (echo Step 4 - Dependencies: %GREEN%✅%RESET%) else (echo Step 4 - Dependencies: %RED%❌%RESET%)
+if !CONFIG_OK!==1 (echo Step 5 - Configuration: %GREEN%✅%RESET%) else (echo Step 5 - Configuration: %RED%❌%RESET%)
+if !FIREWALL_OK!==1 (echo Step 6 - Firewall: %GREEN%✅%RESET%) else (echo Step 6 - Firewall: %YELLOW%⚠️ %RESET%)
+if !STEP_COUNT! GEQ 7 (echo Step 7 - Validation: %GREEN%✅%RESET%) else (echo Step 7 - Validation: %RED%❌%RESET%)
 echo.
 echo %BLUE%Error Details:%RESET%
-echo Last Error: %LAST_ERROR%
-echo Details: %ERROR_DETAILS%
-echo Suggestion: %RECOVERY_SUGGESTION%
+if defined LAST_ERROR echo Last Error: %LAST_ERROR%
+if defined ERROR_DETAILS echo Details: %ERROR_DETAILS%
+if defined RECOVERY_SUGGESTION echo Suggestion: %RECOVERY_SUGGESTION%
 echo.
 echo %BLUE%Log Files for Debugging:%RESET%
 echo 🔍 Debug Log: %DEBUG_LOG%
@@ -952,6 +1083,7 @@ if !PYTHON_OK!==0 echo - Install Python 3.8+ with PATH option
 if !VENV_OK!==0 echo - Delete .venv folder and retry
 if !DEPS_OK!==0 echo - Check internet connection and retry
 if !CONFIG_OK!==0 echo - Check write permissions in project folder
+if !FIREWALL_OK!==0 echo - Run configure_firewall.bat as administrator
 echo.
 
 :end
