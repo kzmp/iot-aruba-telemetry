@@ -1,0 +1,163 @@
+# Aruba Controller WebSocket Connection Guide
+
+## Server Configuration ✅
+- **WebSocket Server**: Running on port 9191
+- **Web Dashboard**: Running on port 9090 
+- **Status**: Server is fully operational and tested
+- **Last Update**: June 24, 2025
+- **Test Results**: Successfully processed 12+ telemetry packets
+
+## Connection URLs to Try
+
+### ✅ TESTED WORKING IPs - WITH AUTHENTICATION
+```
+ws://10.211.55.2:9191/aruba?token=1234        (Parallels Network - TESTED ✅)
+ws://10.37.129.2:9191/aruba?token=admin       (VMware Network - TESTED ✅) 
+ws://172.20.10.2:9191/aruba?token=aruba-iot   (Cellular/Hotspot - TESTED ✅)
+```
+
+### ❌ NON-WORKING IPs (VPN/Tunnel Issues)
+```
+ws://192.168.255.35:9191/aruba?token=1234     (VPN Interface - Connection Timeout)
+```
+
+### Localhost (if controller is on same machine) - WITH AUTHENTICATION
+```
+ws://localhost:9191/aruba?token=1234
+ws://127.0.0.1:9191/aruba?token=admin
+```
+
+### ⚠️ Authentication Required
+**All connections MUST include a valid authentication token via:**
+- Query parameter: `?token=YOUR_TOKEN`
+- Authorization header: `Bearer YOUR_TOKEN`
+- Custom header: `X-Auth-Token: YOUR_TOKEN`
+
+## Aruba Controller Configuration
+
+### WebSocket Client Settings
+- **Protocol**: WebSocket (ws://) or WebSocket Secure (wss://)
+- **Authentication**: **REQUIRED** - Token-based authentication
+- **Valid Tokens**: `1234`, `admin`, `aruba-iot`, `secure-token-2025`
+- **Path**: `/aruba`
+- **Subprotocol**: Not required
+- **Ping/Pong**: Enabled (30s interval)
+
+### Sample Configuration
+```json
+{
+  "websocket": {
+    "url": "ws://192.168.255.66:9191/aruba?token=1234",
+    "reconnect": true,
+    "ping_interval": 30,
+    "headers": {
+      "X-Auth-Token": "1234",
+      "User-Agent": "Aruba-IoT-Controller/1.0"
+    }
+  }
+}
+```
+
+### Authentication Methods
+1. **Query Parameter** (Recommended):
+   ```
+   ws://server:9191/aruba?token=YOUR_TOKEN
+   ```
+
+2. **Authorization Header**:
+   ```
+   Authorization: Bearer YOUR_TOKEN
+   ```
+
+3. **Custom Header**:
+   ```
+   X-Auth-Token: YOUR_TOKEN
+   ```
+
+## Troubleshooting Steps
+
+### 1. Test Basic Connectivity
+```bash
+telnet 192.168.255.34 9191
+```
+
+### 2. Test WebSocket Connection
+```bash
+curl -v -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     -H "Sec-WebSocket-Version: 13" \
+     http://192.168.255.34:9191/aruba
+```
+
+### 3. Check Network Route
+```bash
+ping 192.168.255.34
+traceroute 192.168.255.34
+```
+
+## Common Issues and Solutions
+
+### Issue: Connection Timeout
+**Cause**: Network routing or firewall
+**Solution**: 
+- Check if both devices are on same network segment
+- Verify firewall rules allow port 9191
+- Try alternative IP addresses
+
+### Issue: Connection Refused  
+**Cause**: Server not running or wrong port
+**Solution**:
+- Verify server is running: `lsof -i :9191`
+- Check server logs for errors
+- Try alternative ports
+
+### Issue: Connection Drops
+**Cause**: Network instability or server issues
+**Solution**:
+- Enable WebSocket ping/pong
+- Implement reconnection logic
+- Check network stability
+
+## Server Logs
+Monitor server logs for connection attempts:
+```bash
+# Local development
+tail -f app.log
+
+# Production (systemd)
+journalctl -u aruba-iot -f
+
+# Docker
+docker logs -f aruba-iot
+```
+
+## Deployment to Another Machine
+
+For complete deployment instructions to another machine, see: **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+
+### Quick Remote Deployment Summary:
+
+#### Linux/macOS:
+1. **Clone repository**: `git clone https://github.com/kzmp/iot-aruba-telemetry.git`
+2. **Setup Python environment**: `python3 -m venv .venv && source .venv/bin/activate`
+3. **Install dependencies**: `pip install -r requirements.txt`
+4. **Configure environment**: Edit `.env` file with your tokens and settings
+5. **Open firewall ports**: 9090 (web) and 9191 (WebSocket)
+6. **Run application**: `python app.py`
+
+#### Windows with GitHub Desktop:
+1. **Install GitHub Desktop** from [desktop.github.com](https://desktop.github.com/)
+2. **Clone repository** in GitHub Desktop: `https://github.com/kzmp/iot-aruba-telemetry`
+3. **Open Command Prompt** in the cloned folder
+4. **Run setup script**: `setup_windows.bat`
+5. **Start application**: `start_windows.bat`
+6. **Configure Windows Firewall** (script will prompt for admin privileges)
+
+### Connection URLs for Remote Server:
+```
+ws://REMOTE_SERVER_IP:9191/aruba?token=YOUR_TOKEN
+```
+
+## Contact Information
+For technical support with this IoT telemetry server, check the GitHub repository:
+https://github.com/kzmp/iot-aruba-telemetry

@@ -284,26 +284,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 For production deployment on a remote server, we provide multiple deployment options:
 
-### Option 1: One-Click Setup (Windows)
-```batch
-REM For Windows users with GitHub Desktop:
-REM 1. Clone repository with GitHub Desktop
-REM 2. Double-click one of these files:
-INSTALL_WINDOWS.bat          REM Ultra-simple installation
-setup_windows_oneclick.bat   REM Complete automated setup
-setup_windows_enhanced.bat   REM Enhanced with advanced error handling
-
-REM For troubleshooting:
-troubleshoot_windows.bat     REM Diagnostic and repair tool
-```
-
-**🐛 Enhanced Error Handling:**
-- `setup_windows_enhanced.bat` - Advanced try-catch style error handling
-- Comprehensive logging and debugging
-- Automatic error recovery
-- See `WINDOWS_SETUP_DEBUGGING.md` for details
-
-### Option 2: Quick Setup Script (Linux/macOS)
+### Option 1: Quick Setup Script (Linux/macOS)
 ```bash
 # On Linux/macOS
 git clone https://github.com/kzmp/iot-aruba-telemetry.git
@@ -321,7 +302,6 @@ cd iot-aruba-telemetry
 # 2. Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate  # Linux/macOS
-# or .venv\Scripts\activate  # Windows
 
 # 3. Install dependencies
 pip install -r requirements.txt
@@ -338,16 +318,28 @@ python app.py
 
 ### Option 3: Docker Deployment
 ```bash
-# Clone and build
+# 1. Clone repository
 git clone https://github.com/kzmp/iot-aruba-telemetry.git
 cd iot-aruba-telemetry
-docker build -t aruba-iot .
 
-# Run container
+# 2. Pull latest changes (if needed)
+git pull origin main
+
+# 3a. Quick start script (simplest option)
+chmod +x start-docker.sh
+./start-docker.sh
+
+# 3b. Option 1: Using Docker Compose (recommended)
+docker-compose up -d
+
+# 3c. Option 2: Using Docker commands
+docker build -t aruba-iot .
 docker run -d -p 9090:9090 -p 9191:9191 \
   -e ARUBA_AUTH_TOKENS=your-secure-token \
   --name aruba-iot aruba-iot
 ```
+
+For detailed Docker installation instructions, see: [DOCKER_INSTALL.md](./DOCKER_INSTALL.md)
 
 ### Remote Access URLs
 After deployment, your Aruba controllers can connect using:

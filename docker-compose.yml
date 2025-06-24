@@ -1,0 +1,25 @@
+version: '3'
+
+# Deployment Steps:
+# 1. Clone repository: git clone https://github.com/kzmp/iot-aruba-telemetry.git
+# 2. Navigate to folder: cd iot-aruba-telemetry
+# 3. Start container: docker-compose up -d
+# 4. View logs: docker-compose logs -f
+# 5. Stop container: docker-compose down
+
+services:
+  aruba-iot:
+    build: .
+    ports:
+      - "9090:9090"  # Web dashboard
+      - "9191:9191"  # WebSocket server
+    environment:
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=9090
+      - ARUBA_WS_HOST=0.0.0.0
+      - ARUBA_WS_PORT=9191
+      - ARUBA_AUTH_TOKENS=1234,admin,aruba-iot,secure-token-2025
+      - SECRET_KEY=change-this-in-production
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
