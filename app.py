@@ -252,6 +252,7 @@ async def aruba_websocket_server(websocket, path):
     logger.info(f"New connection attempt from {client_address[0]}:{client_address[1]} on path: {path}")
     
     # Authentication: Check for token in query parameters or headers
+    # Note: '1234' is a temporary token for development/testing purposes only
     valid_tokens = os.getenv('ARUBA_AUTH_TOKENS', '1234,admin,aruba-iot').split(',')
     token = None
     
