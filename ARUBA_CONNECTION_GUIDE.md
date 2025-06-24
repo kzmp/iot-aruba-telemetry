@@ -3,25 +3,26 @@
 ## Current Server Status ✅
 - **WebSocket Server**: Running on port 9191
 - **Web Dashboard**: Running on port 9090 
-- **Status**: Server is accepting connections on localhost
+- **Status**: Server is fully operational and tested
+- **Last Update**: June 24, 2025
+- **Test Results**: Successfully processed 12+ telemetry packets
 
 ## Connection URLs to Try
 
-### Primary (External IP)
+### Primary (Current Network IP)
+```
+ws://192.168.255.66:9191/aruba
+```
+
+### Alternative (Previous IP if still valid)
 ```
 ws://192.168.255.34:9191/aruba
 ```
 
-### Alternative (Localhost - if controller is on same machine)
+### Localhost (if controller is on same machine)
 ```
 ws://localhost:9191/aruba
 ws://127.0.0.1:9191/aruba
-```
-
-### Alternative Ports (if 9191 is blocked)
-```
-ws://192.168.255.34:8765/aruba
-ws://192.168.255.34:9090/aruba
 ```
 
 ## Aruba Controller Configuration
