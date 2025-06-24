@@ -538,10 +538,101 @@ echo Stop with: net stop ArubaIoTTelemetry
 pause
 ```
 
-### Updating with GitHub Desktop
+## 🖥️ Windows Automated Setup Options
 
-1. **Open GitHub Desktop**
-2. **Select your repository**
-3. **Click "Fetch origin"** to check for updates
-4. **Click "Pull origin"** if updates are available
-5. **Restart the application** to apply updates
+### Option 1: Enhanced Setup (Recommended for Problematic Systems)
+**File**: `setup_windows_enhanced.bat`
+```batch
+REM Advanced error handling with comprehensive debugging
+setup_windows_enhanced.bat
+```
+
+**Features**:
+- ✅ **Try-Catch Style Error Handling**: Each step wrapped in error detection
+- ✅ **Comprehensive Logging**: Debug, error, and system logs with timestamps
+- ✅ **Automatic Recovery**: Intelligent error recovery and retry mechanisms
+- ✅ **System Diagnostics**: Detailed system information collection
+- ✅ **Python Auto-Detection**: Searches common Python installation locations
+- ✅ **Automatic Python Installation**: Downloads and installs Python if needed
+- ✅ **Dependency Retry Logic**: Multiple installation strategies
+- ✅ **Firewall Auto-Configuration**: With privilege detection and elevation
+- ✅ **Final Validation Tests**: Comprehensive readiness checks
+
+**Log Files Created**:
+- `logs/setup_debug_TIMESTAMP.log`: Detailed debug information
+- `logs/setup_errors_TIMESTAMP.log`: Error-specific logging  
+- `logs/system_info_TIMESTAMP.log`: System diagnostics
+
+### Option 2: One-Click Setup (Standard)
+**File**: `setup_windows_oneclick.bat`
+```batch
+REM Comprehensive automated setup with basic debugging
+setup_windows_oneclick.bat
+```
+
+### Option 3: Ultra-Simple Setup
+**File**: `INSTALL_WINDOWS.bat`
+```batch
+REM Minimal setup for quick installation
+INSTALL_WINDOWS.bat
+```
+
+### Option 4: Step-by-Step Setup
+**File**: `setup_windows.bat`
+```batch
+REM Interactive setup with user prompts
+setup_windows.bat
+```
+
+### 🐛 Troubleshooting Tools
+
+#### Diagnostic Tool
+**File**: `troubleshoot_windows.bat`
+```batch
+REM Automated problem detection and repair
+troubleshoot_windows.bat
+```
+
+#### Error Handling Test
+**File**: `test_error_handling.bat`
+```batch
+REM Test the error handling capabilities
+test_error_handling.bat
+```
+
+#### Firewall Configuration
+**File**: `configure_firewall.bat`
+```batch
+REM Standalone firewall setup
+configure_firewall.bat
+```
+
+### 📊 Enhanced Error Handling Details
+
+The enhanced setup script provides:
+
+1. **Error Categories**:
+   - `PROJECT_DIR`: Missing or incorrect project directory
+   - `PYTHON_VERSION`: Python not found or incompatible version
+   - `VENV_CREATE/ACTIVATE`: Virtual environment issues
+   - `DEPS_INSTALL`: Dependency installation failures
+   - `ENV_CREATE`: Environment configuration problems
+   - `FIREWALL`: Windows Firewall configuration issues
+
+2. **Recovery Mechanisms**:
+   - Automatic Python search in common locations
+   - Multiple dependency installation strategies
+   - Virtual environment recreation
+   - Administrator privilege handling
+   - Network connectivity retry logic
+
+3. **Validation Tests**:
+   - Virtual environment activation test
+   - Critical package import test
+   - Configuration file validation
+   - Port availability check
+   - System readiness verification
+
+For detailed error handling documentation, see: `WINDOWS_SETUP_DEBUGGING.md`
+
+## 🐧 Linux/macOS Automated Setup

@@ -1,12 +1,12 @@
 @echo off
-REM Aruba IoT Telemetry Server - One-Click Windows Setup
-REM This script automates the complete installation process
+REM Aruba IoT Telemetry Server - One-Click Windows Setup with Debug
+REM This script automates the complete installation process with error handling
 
-SETLOCAL EnableDelayedExpansion
+SETLOCAL EnableDelayedExpansion EnableExtensions
 
 echo.
-echo 🚀 Aruba IoT Telemetry Server - One-Click Windows Setup
-echo =====================================================
+echo 🚀 Aruba IoT Telemetry Server - One-Click Windows Setup (DEBUG MODE)
+echo ================================================================
 echo This script will automatically:
 echo ✅ Check Python installation
 echo ✅ Create virtual environment
@@ -16,6 +16,12 @@ echo ✅ Setup Windows Firewall
 echo ✅ Test the installation
 echo ✅ Start the server
 echo.
+echo 🐛 DEBUG MODE: Detailed error reporting enabled
+echo.
+
+REM Create debug log file
+set "DEBUG_LOG=%CD%\setup_debug.log"
+echo [%DATE% %TIME%] Setup started > "%DEBUG_LOG%"
 
 REM Set colors for better output
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
@@ -23,6 +29,7 @@ set "GREEN=%ESC%[92m"
 set "RED=%ESC%[91m"
 set "YELLOW=%ESC%[93m"
 set "BLUE=%ESC%[94m"
+set "CYAN=%ESC%[96m"
 set "RESET=%ESC%[0m"
 
 REM Initialize variables
@@ -32,12 +39,23 @@ set "VENV_OK=0"
 set "DEPS_OK=0"
 set "CONFIG_OK=0"
 set "FIREWALL_OK=0"
+set "STEP_COUNT=0"
+
+REM Debug function
+:DEBUG_LOG
+echo [%DATE% %TIME%] %~1 >> "%DEBUG_LOG%"
+echo %CYAN%[DEBUG]%RESET% %~1
+goto :eof
 
 echo %BLUE%Step 1: Checking prerequisites...%RESET%
 echo ==========================================
+set /a STEP_COUNT=1
+call :DEBUG_LOG "Step 1: Starting prerequisite checks"
 
-REM Check if we're in the right directory
+REM Try-Catch: Check if we're in the right directory
+call :DEBUG_LOG "Checking for app.py in current directory: %CD%"
 if not exist app.py (
+    call :DEBUG_LOG "ERROR: app.py not found in %CD%"
     echo %RED%❌ app.py not found in current directory!%RESET%
     echo Please make sure you're running this script from the project folder
     echo.
@@ -45,35 +63,55 @@ if not exist app.py (
     echo C:\Users\%USERNAME%\Documents\GitHub\iot-aruba-telemetry
     echo.
     echo Current directory: %CD%
+    echo Directory contents:
+    dir /b
+    call :DEBUG_LOG "Directory contents: "
+    dir /b >> "%DEBUG_LOG%"
+    
     echo.
     echo %YELLOW%Would you like to navigate to the correct folder? (y/n)%RESET%
     set /p navigate="Enter your choice: "
     if /i "!navigate!"=="y" (
         echo Please enter the full path to your iot-aruba-telemetry folder:
         set /p project_path="Path: "
+        call :DEBUG_LOG "User provided path: !project_path!"
         if exist "!project_path!\app.py" (
             cd /d "!project_path!"
+            call :DEBUG_LOG "Successfully changed to directory: !project_path!"
             echo %GREEN%✅ Changed to correct directory%RESET%
         ) else (
+            call :DEBUG_LOG "ERROR: app.py not found in user-provided path: !project_path!"
             echo %RED%❌ app.py not found in specified directory%RESET%
-            pause
-            exit /b 1
+            echo Available files in that directory:
+            dir "!project_path!" /b 2>nul || echo "Directory not accessible"
+            set "SETUP_ERROR=1"
+            goto :error_summary
         )
     ) else (
-        pause
-        exit /b 1
+        call :DEBUG_LOG "User chose not to navigate to correct folder"
+        set "SETUP_ERROR=1"
+        goto :error_summary
     )
+) else (
+    call :DEBUG_LOG "SUCCESS: app.py found in current directory"
+    echo %GREEN%✅ Project directory verified%RESET%
 )
 
-echo %GREEN%✅ Project directory verified%RESET%
-
-REM Check if Python is installed
+REM Try-Catch: Check if Python is installed
+call :DEBUG_LOG "Checking Python installation"
 echo.
 echo Checking Python installation...
 python --version >nul 2>&1
-if errorlevel 1 (
+set "PYTHON_EXIT_CODE=!ERRORLEVEL!"
+call :DEBUG_LOG "Python version check exit code: !PYTHON_EXIT_CODE!"
+
+if !PYTHON_EXIT_CODE! neq 0 (
+    call :DEBUG_LOG "Python not found in PATH, attempting to locate"
     echo %RED%❌ Python is not installed or not in PATH%RESET%
     echo.
+    echo Current PATH: %PATH%
+    call :DEBUG_LOG "Current PATH: %PATH%"
+    
     echo %YELLOW%Option 1: Download and Install Python%RESET%
     echo =====================================
     echo 1. Go to https://www.python.org/downloads/windows/
@@ -86,16 +124,21 @@ if errorlevel 1 (
     
     REM Try to find Python in common locations
     set "PYTHON_FOUND=0"
+    call :DEBUG_LOG "Searching for Python in common locations"
+    
     for %%p in (
         "C:\Python3*\python.exe"
         "C:\Program Files\Python3*\python.exe" 
         "C:\Program Files (x86)\Python3*\python.exe"
         "%LOCALAPPDATA%\Programs\Python\Python3*\python.exe"
         "%USERPROFILE%\AppData\Local\Programs\Python\Python3*\python.exe"
+        "%APPDATA%\Python\Python3*\python.exe"
     ) do (
-        if exist "%%p" (
-            echo Found Python at: %%p
-            set "PYTHON_PATH=%%p"
+        call :DEBUG_LOG "Checking path: %%p"
+        for /f "delims=" %%f in ('dir "%%p" /b 2^>nul') do (
+            set "PYTHON_PATH=%%~dpf%%f"
+            call :DEBUG_LOG "Found Python at: !PYTHON_PATH!"
+            echo Found Python at: !PYTHON_PATH!
             set "PYTHON_FOUND=1"
             goto :python_found
         )
@@ -103,26 +146,46 @@ if errorlevel 1 (
     
     :python_found
     if !PYTHON_FOUND!==1 (
-        echo %YELLOW%Found Python installation. Adding to PATH temporarily...%RESET%
+        echo %YELLOW%Found Python installation. Testing accessibility...%RESET%
         for %%i in ("!PYTHON_PATH!") do set "PYTHON_DIR=%%~dpi"
+        call :DEBUG_LOG "Python directory: !PYTHON_DIR!"
         set "PATH=!PYTHON_DIR!;!PYTHON_DIR!Scripts;!PATH!"
+        call :DEBUG_LOG "Updated PATH: !PATH!"
+        
         python --version >nul 2>&1
-        if not errorlevel 1 (
+        set "PYTHON_TEST_EXIT=!ERRORLEVEL!"
+        call :DEBUG_LOG "Python test after PATH update exit code: !PYTHON_TEST_EXIT!"
+        
+        if !PYTHON_TEST_EXIT!==0 (
             echo %GREEN%✅ Python is now accessible%RESET%
             set "PYTHON_OK=1"
+            python --version
+        ) else (
+            call :DEBUG_LOG "ERROR: Python still not accessible after PATH update"
+            echo %RED%❌ Python found but not accessible%RESET%
         )
     )
     
     if !PYTHON_OK!==0 (
+        call :DEBUG_LOG "FATAL: Could not find or access Python"
         echo %RED%❌ Could not find or access Python%RESET%
-        echo Please install Python and try again
-        pause
-        exit /b 1
+        echo.
+        echo Debugging information:
+        echo - Windows version: 
+        ver
+        echo - Current user: %USERNAME%
+        echo - Current directory: %CD%
+        echo - Available drives:
+        wmic logicaldisk get size,freespace,caption
+        set "SETUP_ERROR=1"
+        goto :error_summary
     )
 ) else (
     set "PYTHON_OK=1"
+    call :DEBUG_LOG "SUCCESS: Python found in PATH"
     echo %GREEN%✅ Python found:%RESET%
     python --version
+    python --version >> "%DEBUG_LOG%"
 )
 
 echo.

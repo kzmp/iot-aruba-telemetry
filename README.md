@@ -289,9 +289,19 @@ For production deployment on a remote server, we provide multiple deployment opt
 REM For Windows users with GitHub Desktop:
 REM 1. Clone repository with GitHub Desktop
 REM 2. Double-click one of these files:
-setup_windows_oneclick.bat   REM Complete automated setup
 INSTALL_WINDOWS.bat          REM Ultra-simple installation
+setup_windows_oneclick.bat   REM Complete automated setup
+setup_windows_enhanced.bat   REM Enhanced with advanced error handling
+
+REM For troubleshooting:
+troubleshoot_windows.bat     REM Diagnostic and repair tool
 ```
+
+**🐛 Enhanced Error Handling:**
+- `setup_windows_enhanced.bat` - Advanced try-catch style error handling
+- Comprehensive logging and debugging
+- Automatic error recovery
+- See `WINDOWS_SETUP_DEBUGGING.md` for details
 
 ### Option 2: Quick Setup Script (Linux/macOS)
 ```bash
