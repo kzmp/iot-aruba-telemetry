@@ -286,11 +286,18 @@ For production deployment on a remote server, we provide multiple deployment opt
 
 ### Option 1: Quick Setup Script (Recommended)
 ```bash
-# On the target machine
+# On Linux/macOS
 git clone https://github.com/kzmp/iot-aruba-telemetry.git
 cd iot-aruba-telemetry
 chmod +x setup.sh
 ./setup.sh
+```
+
+```batch
+REM On Windows (using GitHub Desktop)
+REM 1. Clone repository with GitHub Desktop
+REM 2. Open Command Prompt in project folder
+setup_windows.bat
 ```
 
 ### Option 2: Manual Setup

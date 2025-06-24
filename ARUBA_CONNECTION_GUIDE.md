@@ -136,12 +136,22 @@ docker logs -f aruba-iot
 For complete deployment instructions to another machine, see: **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
 
 ### Quick Remote Deployment Summary:
+
+#### Linux/macOS:
 1. **Clone repository**: `git clone https://github.com/kzmp/iot-aruba-telemetry.git`
 2. **Setup Python environment**: `python3 -m venv .venv && source .venv/bin/activate`
 3. **Install dependencies**: `pip install -r requirements.txt`
 4. **Configure environment**: Edit `.env` file with your tokens and settings
 5. **Open firewall ports**: 9090 (web) and 9191 (WebSocket)
 6. **Run application**: `python app.py`
+
+#### Windows with GitHub Desktop:
+1. **Install GitHub Desktop** from [desktop.github.com](https://desktop.github.com/)
+2. **Clone repository** in GitHub Desktop: `https://github.com/kzmp/iot-aruba-telemetry`
+3. **Open Command Prompt** in the cloned folder
+4. **Run setup script**: `setup_windows.bat`
+5. **Start application**: `start_windows.bat`
+6. **Configure Windows Firewall** (script will prompt for admin privileges)
 
 ### Connection URLs for Remote Server:
 ```

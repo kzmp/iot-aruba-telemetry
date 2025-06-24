@@ -333,3 +333,186 @@ python app.py
 # Web Dashboard: http://YOUR_IP:9090
 # WebSocket: ws://YOUR_IP:9191/aruba?token=YOUR_TOKEN
 ```
+
+## Windows Installation with GitHub Desktop
+
+### Prerequisites for Windows
+- **GitHub Desktop**: Download from [desktop.github.com](https://desktop.github.com/)
+- **Python 3.8+**: Download from [python.org](https://www.python.org/downloads/windows/)
+- **Git for Windows**: Usually included with GitHub Desktop
+
+### Step-by-Step Installation
+
+#### 1. Clone Repository with GitHub Desktop
+1. **Open GitHub Desktop**
+2. **Clone Repository**:
+   - Click "Clone a repository from the Internet"
+   - Enter repository URL: `https://github.com/kzmp/iot-aruba-telemetry`
+   - Choose local path (e.g., `C:\Users\YourName\Documents\iot-aruba-telemetry`)
+   - Click "Clone"
+
+#### 2. Setup Python Environment
+1. **Open Command Prompt or PowerShell**:
+   - Press `Win + R`, type `cmd`, press Enter
+   - Or press `Win + X`, select "Windows PowerShell"
+
+2. **Navigate to project directory**:
+   ```cmd
+   cd "C:\Users\YourName\Documents\iot-aruba-telemetry"
+   ```
+
+3. **Create virtual environment**:
+   ```cmd
+   python -m venv .venv
+   ```
+
+4. **Activate virtual environment**:
+   ```cmd
+   .venv\Scripts\activate
+   ```
+
+5. **Install dependencies**:
+   ```cmd
+   pip install -r requirements.txt
+   ```
+
+#### 3. Configure Environment
+1. **Create configuration file**:
+   ```cmd
+   copy nul .env
+   ```
+
+2. **Edit .env file** (use Notepad or any text editor):
+   ```cmd
+   notepad .env
+   ```
+
+3. **Add configuration** (paste this into the .env file):
+   ```properties
+   # Flask Configuration
+   FLASK_HOST=0.0.0.0
+   FLASK_PORT=9090
+   FLASK_DEBUG=False
+   SECRET_KEY=your-windows-secret-key-change-this
+
+   # Aruba WebSocket Server Configuration
+   ARUBA_WS_HOST=0.0.0.0
+   ARUBA_WS_PORT=9191
+
+   # Authentication Configuration
+   ARUBA_AUTH_TOKENS=admin,windows-token,aruba-iot,secure-2025
+
+   # Logging Configuration
+   LOG_LEVEL=INFO
+   ```
+
+#### 4. Configure Windows Firewall
+1. **Open Windows Defender Firewall**:
+   - Press `Win + R`, type `wf.msc`, press Enter
+
+2. **Create inbound rules** for ports 9090 and 9191:
+   - Click "Inbound Rules" → "New Rule"
+   - Select "Port" → "TCP"
+   - Enter port numbers: `9090` and `9191`
+   - Allow the connection
+   - Apply to all profiles
+   - Name: "Aruba IoT Telemetry"
+
+**Or use PowerShell (Run as Administrator)**:
+```powershell
+New-NetFirewallRule -DisplayName "Aruba IoT Web" -Direction Inbound -Protocol TCP -LocalPort 9090 -Action Allow
+New-NetFirewallRule -DisplayName "Aruba IoT WebSocket" -Direction Inbound -Protocol TCP -LocalPort 9191 -Action Allow
+```
+
+#### 5. Run the Application
+1. **Start the server**:
+   ```cmd
+   python app.py
+   ```
+
+2. **Access the application**:
+   - Web Dashboard: `http://localhost:9090`
+   - WebSocket endpoint: `ws://YOUR_WINDOWS_IP:9191/aruba?token=admin`
+
+#### 6. Find Your Windows IP Address
+```cmd
+ipconfig | findstr "IPv4"
+```
+
+### Windows Service Installation (Optional)
+
+For running as a Windows service, create `install_service.bat`:
+
+```batch
+@echo off
+echo Installing Aruba IoT as Windows Service...
+
+REM Install Python Windows Service Wrapper
+pip install pywin32
+
+REM Create service script
+python -c "
+import win32serviceutil
+import win32service
+import win32event
+import servicemanager
+import socket
+import sys
+import os
+import subprocess
+
+class ArubaIoTService(win32serviceutil.ServiceFramework):
+    _svc_name_ = 'ArubaIoTTelemetry'
+    _svc_display_name_ = 'Aruba IoT Telemetry Server'
+    _svc_description_ = 'WebSocket server for Aruba IoT telemetry data'
+
+    def __init__(self, args):
+        win32serviceutil.ServiceFramework.__init__(self, args)
+        self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
+        socket.setdefaulttimeout(60)
+
+    def SvcStop(self):
+        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        win32event.SetEvent(self.hWaitStop)
+
+    def SvcDoRun(self):
+        servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
+                              servicemanager.PYS_SERVICE_STARTED,
+                              (self._svc_name_, ''))
+        self.main()
+
+    def main(self):
+        import subprocess
+        import os
+        
+        # Change to script directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        os.chdir(script_dir)
+        
+        # Activate virtual environment and run app
+        venv_python = os.path.join(script_dir, '.venv', 'Scripts', 'python.exe')
+        app_script = os.path.join(script_dir, 'app.py')
+        
+        process = subprocess.Popen([venv_python, app_script])
+        process.wait()
+
+if __name__ == '__main__':
+    win32serviceutil.HandleCommandLine(ArubaIoTService)
+"
+
+REM Install the service
+python install_service.py install
+
+echo Service installed successfully!
+echo Start with: net start ArubaIoTTelemetry
+echo Stop with: net stop ArubaIoTTelemetry
+pause
+```
+
+### Updating with GitHub Desktop
+
+1. **Open GitHub Desktop**
+2. **Select your repository**
+3. **Click "Fetch origin"** to check for updates
+4. **Click "Pull origin"** if updates are available
+5. **Restart the application** to apply updates
